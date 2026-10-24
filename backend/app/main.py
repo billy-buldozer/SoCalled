@@ -1,3 +1,4 @@
+from backend.app.posts import router as posts_router
 
 import asyncio
 import base64
@@ -17,6 +18,7 @@ from backend.app.video_uploads import (
 
 
 app = FastAPI(title="SoCalled API")
+app.include_router(posts_router)
 app.include_router(video_router)
 
 
