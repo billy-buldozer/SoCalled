@@ -1,0 +1,420 @@
+
+/* ==========================================
+   SOCALLED v0.5
+   PERSONALIZACJA POKOJÓW
+   ========================================== */
+
+/* ==========================================
+   ZDJĘCIA POKOJÓW
+   ========================================== */
+
+.room-custom-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.hex-inside {
+  overflow: hidden;
+}
+
+.hex-inside .room-custom-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mobile-room-icon,
+.chat-header-icon,
+.chat-intro-icon,
+.room-identity-icon {
+  overflow: hidden;
+}
+
+.mobile-room-icon .room-custom-image,
+.chat-header-icon .room-custom-image,
+.chat-intro-icon .room-custom-image,
+.room-identity-icon .room-custom-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ==========================================
+   FORMULARZ PERSONALIZACJI
+   ========================================== */
+
+.room-custom-form {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+
+  width: 100%;
+  min-width: 0;
+
+  margin-top: 17px;
+}
+
+.room-custom-form label,
+.room-custom-label {
+  display: block;
+
+  color: #c5e0cc;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.room-custom-form input:not([type="file"]),
+.room-custom-form textarea {
+  display: block;
+  width: 100%;
+  min-width: 0;
+
+  padding: 11px 12px;
+
+  border: 1px solid #365541;
+  border-radius: 10px;
+
+  outline: none;
+
+  background: #11271b;
+  color: #effbf2;
+
+  font: inherit;
+  font-size: 13px;
+
+  transition: border-color 0.18s;
+}
+
+.room-custom-form textarea {
+  min-height: 90px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.room-custom-form input:focus,
+.room-custom-form textarea:focus {
+  border-color: var(--accent);
+}
+
+.room-custom-form input:disabled,
+.room-custom-form textarea:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ==========================================
+   WYBÓR IKONY
+   ========================================== */
+
+.room-icon-picker {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+
+  width: 100%;
+  margin-bottom: 5px;
+}
+
+.room-icon-option {
+  display: grid;
+  place-items: center;
+
+  min-width: 0;
+  height: 45px;
+
+  padding: 0;
+
+  border: 1px solid #395c45;
+  border-radius: 11px;
+
+  background: #193425;
+  color: #b9d2c0;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    transform 0.2s;
+}
+
+.room-icon-option svg {
+  width: 21px;
+  height: 21px;
+}
+
+.room-icon-option:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: #71ad80;
+}
+
+.room-icon-option.selected {
+  border-color: var(--accent);
+  background: #27593a;
+  color: var(--accent);
+}
+
+.room-icon-option:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ==========================================
+   ZDJĘCIE GŁÓWNE POKOJU
+   ========================================== */
+
+.room-image-editor {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+
+  width: 100%;
+  min-width: 0;
+
+  padding: 12px;
+
+  border: 1px solid #34533f;
+  border-radius: 12px;
+
+  background: #142c1e;
+}
+
+.room-image-preview {
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  width: 77px;
+  height: 77px;
+
+  overflow: hidden;
+
+  border: 1px solid #52745c;
+  border-radius: 15px;
+
+  background: #23442f;
+  color: var(--accent);
+}
+
+.room-image-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.room-image-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+
+  min-width: 0;
+  flex: 1;
+}
+
+.room-upload-button,
+.room-remove-image {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  max-width: 100%;
+
+  padding: 9px 11px;
+
+  border: 1px solid #426b4c;
+  border-radius: 9px;
+
+  font-size: 11px !important;
+  font-weight: 650;
+
+  cursor: pointer;
+}
+
+.room-upload-button {
+  background: #28513a;
+  color: #e3f4e7 !important;
+}
+
+.room-upload-button input[type="file"] {
+  display: none;
+}
+
+.room-upload-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.room-remove-image {
+  background: #3b2526;
+  border-color: #704344;
+  color: #f1b5b0;
+}
+
+.room-remove-image:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.room-image-actions small {
+  color: #89a993;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+/* ==========================================
+   BLOKADA EDYCJI
+   ========================================== */
+
+.room-editor-locked {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+
+  margin-top: 14px;
+  padding: 11px;
+
+  border: 1px solid #685742;
+  border-radius: 10px;
+
+  background: #30291e;
+  color: #e5c89c;
+
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.room-editor-locked svg {
+  flex-shrink: 0;
+}
+
+/* ==========================================
+   KOMUNIKATY
+   ========================================== */
+
+.room-form-error {
+  padding: 10px 12px;
+
+  border: 1px solid #854c4b;
+  border-radius: 9px;
+
+  background: #3b2326;
+  color: #ffbcb7;
+
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.room-form-success {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 10px 12px;
+
+  border: 1px solid #356c47;
+  border-radius: 9px;
+
+  background: #1d402a;
+  color: #b6f0c4;
+
+  font-size: 12px;
+}
+
+/* ==========================================
+   PRZYCISK ZAPISU
+   ========================================== */
+
+.room-save-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+
+  width: 100%;
+  min-height: 43px;
+
+  margin-top: 8px;
+  padding: 11px 14px;
+
+  border: none;
+  border-radius: 10px;
+
+  background: var(--accent);
+  color: #092417;
+
+  font-size: 13px;
+  font-weight: 750;
+
+  cursor: pointer;
+
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
+}
+
+.room-save-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.room-save-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ==========================================
+   MOBILE
+   ========================================== */
+
+@media (max-width: 850px) {
+  .room-custom-form {
+    gap: 13px;
+  }
+
+  .room-custom-form input:not([type="file"]),
+  .room-custom-form textarea {
+    font-size: 16px;
+  }
+
+  .room-icon-picker {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .room-icon-option {
+    height: 49px;
+  }
+
+  .room-image-preview {
+    width: 72px;
+    height: 72px;
+  }
+
+  .room-upload-button,
+  .room-remove-image {
+    padding: 10px;
+  }
+
+  .room-save-button {
+    min-height: 48px;
+  }
+}
+
+@media (max-width: 360px) {
+  .room-image-editor {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .room-image-actions {
+    width: 100%;
+  }
+}
