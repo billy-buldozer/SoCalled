@@ -1,5 +1,12 @@
-# Byte-compiled / optimized / DLL files
+.venv/
+.idea/
 __pycache__/
+*.pyc
+.env
+node_modules/
+dist/
+
+# Byte-compiled / optimized / DLL files
 *.py[codz]
 *$py.class
 
@@ -10,7 +17,6 @@ __pycache__/
 .Python
 build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
@@ -150,7 +156,6 @@ activemq-data/
 *.sage.py
 
 # Environments
-.env
 .envrc
 .venv
 env/
