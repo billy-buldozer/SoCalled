@@ -4,6 +4,87 @@ import { availableReactions, RoomVisual, videoUrl, formatFileSize } from '../soc
 import type { SoCalledModel } from '../hooks/useSoCalled';
 export default function ChatPanel({ model }: { model: SoCalledModel }) {
   const { setMobileScreen, setDetailsTab, draft, socketStatus, chatScrollRef, composerInputRef, actionMenuId, setActionMenuId, editingId, editingText, setEditingText, pendingEditId, actionError, setActionError, replyTarget, setReplyTarget, reactionPickerId, setReactionPickerId, attachedImage, imagePreparing, imageError, setImageError, fileInputRef, attachedVideoId, attachedVideoName, attachedVideoSize, videoUploading, videoError, setVideoError, videoInputRef, forwardNotice, setForwardNotice, heartBurst, clientId, activeRoom, canModerateMessages, roomMessages, typingLabel, reconnectNow, stopTyping, handleDraftChange, handleMessageDoubleClick, handleMessageTouchStart, handleMessageTouchEnd, handleImageClick, handleMessageImageSelection, removeAttachedImage, removeAttachedVideo, handleVideoSelection, openRoom, replyToMessage, sendMessage, toggleReaction, saveMessageImage, startForward, toggleMessageMenu, startMessageEdit, cancelMessageEdit, saveMessageEdit, deleteMessage } = model;
+  // Pobieranie wykorzystuje ten sam adres, z którego
+  // odtwarzacz wczytuje film. Jeśli backend obsługuje
+  // /download, najpierw korzystamy z wersji MP4.
+  async function saveMessageVideo(videoId: string): Promise<void> {
+    setActionMenuId(null);
+    setActionError("");
+
+    try {
+      const baseUrl = videoUrl(videoId);
+      const downloadResponse = await fetch(`${baseUrl}/download`);
+
+      // Stary backend może nie mieć endpointu /download.
+      // Jeśli go brak albo konwersja jest niedostępna,
+      // pobieramy oryginał ze sprawdzonego adresu odtwarzacza.
+      let response = downloadResponse;
+      let mediaType = response.headers
+        .get("content-type")
+        ?.split(";")[0]
+        .trim()
+        .toLowerCase() ?? "";
+
+      const isVideoType = (type: string) =>
+        type === "video/mp4" ||
+        type === "video/webm" ||
+        type === "video/quicktime";
+
+      if (
+        response.status === 404 ||
+        response.status === 422 ||
+        response.status === 503 ||
+        (response.ok && !isVideoType(mediaType))
+      ) {
+        response = await fetch(baseUrl);
+        mediaType = response.headers
+          .get("content-type")
+          ?.split(";")[0]
+          .trim()
+          .toLowerCase() ?? "";
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const type = mediaType || blob.type.toLowerCase();
+
+      const extension =
+        type === "video/mp4"
+          ? "mp4"
+          : type === "video/webm"
+            ? "webm"
+            : type === "video/quicktime"
+              ? "mov"
+              : null;
+
+      if (!extension || blob.size === 0) {
+        throw new Error("Serwer nie zwrócił poprawnego filmu.");
+      }
+
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = objectUrl;
+      link.download = `socalled-${videoId.slice(0, 8)}.${extension}`;
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      window.setTimeout(() => {
+        URL.revokeObjectURL(objectUrl);
+      }, 60_000);
+    } catch (error) {
+      console.error("[SoCalled] Pobieranie filmu:", error);
+      setActionError(
+        "Nie udało się pobrać filmu. Sprawdź, czy można go odtworzyć."
+      );
+    }
+  }
+
   return (
 <main className="chat-panel">
         <header className="chat-header">
@@ -266,6 +347,18 @@ export default function ChatPanel({ model }: { model: SoCalledModel }) {
                                 >
                                   <Download size={16} />
                                   Pobierz PNG
+                                </button>
+                              )}
+
+                              {message.videoId && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void saveMessageVideo(message.videoId!)
+                                  }
+                                >
+                                  <Download size={16} />
+                                  Pobierz MP4
                                 </button>
                               )}
 
