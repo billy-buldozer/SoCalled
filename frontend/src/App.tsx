@@ -1,6 +1,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
+
 import {
   ArrowLeft,
   Bell,
@@ -19,19 +20,35 @@ import {
   Music2,
   Palette,
   Plus,
+  RefreshCw,
   Search,
   Send,
   Settings2,
   ShieldCheck,
   Sparkles,
   Users,
+  WifiOff,
   X,
 } from "lucide-react";
+
 import "./App.css";
 
-type RoomIcon = "hash" | "game" | "code" | "music" | "camera" | "coffee" | "globe";
+// ==========================================
+// TYPY DANYCH
+// ==========================================
+
+type RoomIcon =
+  | "hash"
+  | "game"
+  | "code"
+  | "music"
+  | "camera"
+  | "coffee"
+  | "globe";
+
 type MobileScreen = "rooms" | "chat" | "details";
 type DetailsTab = "about" | "settings";
+type SocketStatus = "connecting" | "online" | "offline";
 
 type Room = {
   id: string;
@@ -53,8 +70,21 @@ type ChatMessage = {
   author: string;
   time: string;
   text: string;
-  mine?: boolean;
+  mine: boolean;
 };
+
+type ServerMessage = {
+  id: string;
+  roomId: string;
+  clientId: string;
+  author: string;
+  time: string;
+  text: string;
+};
+
+// ==========================================
+// POKOJE DEMONSTRACYJNE
+// ==========================================
 
 const initialRooms: Room[] = [
   {
@@ -65,9 +95,9 @@ const initialRooms: Room[] = [
     topic: "Wszystko zaczyna się od rozmowy.",
     members: 28,
     online: 8,
-    lastMessage: "Widzimy się wieczorem!",
-    lastTime: "14:28",
-    unread: 3,
+    lastMessage: "Brak wiadomości",
+    lastTime: "—",
+    unread: 0,
     isPrivate: false,
   },
   {
@@ -78,8 +108,8 @@ const initialRooms: Room[] = [
     topic: "Jeszcze jeden mecz?",
     members: 19,
     online: 6,
-    lastMessage: "Kto dzisiaj gra?",
-    lastTime: "13:48",
+    lastMessage: "Brak wiadomości",
+    lastTime: "—",
     unread: 0,
     isPrivate: false,
   },
@@ -91,9 +121,9 @@ const initialRooms: Room[] = [
     topic: "Build something amazing.",
     members: 15,
     online: 5,
-    lastMessage: "Nowy projekt na GitHubie.",
-    lastTime: "12:17",
-    unread: 2,
+    lastMessage: "Brak wiadomości",
+    lastTime: "—",
+    unread: 0,
     isPrivate: false,
   },
   {
@@ -104,8 +134,8 @@ const initialRooms: Room[] = [
     topic: "Co dzisiaj gra w słuchawkach?",
     members: 24,
     online: 4,
-    lastMessage: "Ten album jest genialny.",
-    lastTime: "11:52",
+    lastMessage: "Brak wiadomości",
+    lastTime: "—",
     unread: 0,
     isPrivate: false,
   },
@@ -117,8 +147,8 @@ const initialRooms: Room[] = [
     topic: "Uchwyć chwilę.",
     members: 12,
     online: 3,
-    lastMessage: "Sprawdźcie to ujęcie!",
-    lastTime: "Wczoraj",
+    lastMessage: "Brak wiadomości",
+    lastTime: "—",
     unread: 0,
     isPrivate: false,
   },
@@ -130,8 +160,8 @@ const initialRooms: Room[] = [
     topic: "Po prostu porozmawiajmy.",
     members: 31,
     online: 9,
-    lastMessage: "No i pięknie XDDD",
-    lastTime: "Wczoraj",
+    lastMessage: "Brak wiadomości",
+    lastTime: "—",
     unread: 0,
     isPrivate: false,
   },
@@ -143,122 +173,52 @@ const initialRooms: Room[] = [
     topic: "Zawsze jest coś do odkrycia.",
     members: 11,
     online: 2,
-    lastMessage: "Ale ciekawy artykuł.",
-    lastTime: "Pon.",
+    lastMessage: "Brak wiadomości",
+    lastTime: "—",
     unread: 0,
     isPrivate: false,
   },
 ];
 
-const initialMessages: ChatMessage[] = [
-  {
-    id: "1",
-    roomId: "general",
-    author: "Maja",
-    time: "14:12",
-    text: "Hej wszystkim! Co tam u was?",
-  },
-  {
-    id: "2",
-    roomId: "general",
-    author: "Kuba",
-    time: "14:14",
-    text: "Właśnie testuję nową platformę. Wygląda obiecująco 👀",
-  },
-  {
-    id: "3",
-    roomId: "general",
-    author: "Ola",
-    time: "14:17",
-    text: "Ten zielony motyw jest naprawdę świetny.",
-  },
-  {
-    id: "4",
-    roomId: "general",
-    author: "Ty",
-    time: "14:20",
-    text: "Witajcie w SoCalled! 🌿",
-    mine: true,
-  },
-  {
-    id: "5",
-    roomId: "general",
-    author: "Maja",
-    time: "14:25",
-    text: "Ciekawe, jak będzie wyglądał cały portal, kiedy dodamy posty i profile.",
-  },
-  {
-    id: "6",
-    roomId: "general",
-    author: "Kuba",
-    time: "14:28",
-    text: "Widzimy się wieczorem!",
-  },
-  {
-    id: "7",
-    roomId: "gaming",
-    author: "Kuba",
-    time: "13:45",
-    text: "Kto chętny na wspólną rozgrywkę?",
-  },
-  {
-    id: "8",
-    roomId: "gaming",
-    author: "Maja",
-    time: "13:48",
-    text: "Ja mogę dołączyć później!",
-  },
-  {
-    id: "9",
-    roomId: "dev",
-    author: "Ola",
-    time: "12:12",
-    text: "Znalazłam ciekawy sposób na synchronizację wątków.",
-  },
-  {
-    id: "10",
-    roomId: "dev",
-    author: "Kuba",
-    time: "12:17",
-    text: "Nowy projekt na GitHubie. Wrzucę link wieczorem.",
-  },
-  {
-    id: "11",
-    roomId: "music",
-    author: "Maja",
-    time: "11:52",
-    text: "Polecam wam przesłuchać ten album od początku do końca.",
-  },
-  {
-    id: "12",
-    roomId: "photo",
-    author: "Ola",
-    time: "18:40",
-    text: "Zrobiłam świetne zdjęcia podczas zachodu słońca.",
-  },
-  {
-    id: "13",
-    roomId: "offtopic",
-    author: "Kuba",
-    time: "20:10",
-    text: "No i pięknie XDDD",
-  },
-  {
-    id: "14",
-    roomId: "world",
-    author: "Maja",
-    time: "10:08",
-    text: "Znalazłam ciekawy artykuł, później go podeślę.",
-  },
-];
+// ==========================================
+// MOTYWY
+// ==========================================
 
 const themeOptions = [
-  { id: "emerald", label: "Emerald", hex: "#55df91", rgb: "85, 223, 145" },
-  { id: "mint", label: "Mint", hex: "#65dbc5", rgb: "101, 219, 197" },
-  { id: "lime", label: "Lime", hex: "#b4db63", rgb: "180, 219, 99" },
+  {
+    id: "emerald",
+    label: "Emerald",
+    hex: "#55df91",
+    rgb: "85, 223, 145",
+  },
+  {
+    id: "mint",
+    label: "Mint",
+    hex: "#65dbc5",
+    rgb: "101, 219, 197",
+  },
+  {
+    id: "lime",
+    label: "Lime",
+    hex: "#b4db63",
+    rgb: "180, 219, 99",
+  },
 ] as const;
 
 type ThemeId = (typeof themeOptions)[number]["id"];
+
+// ==========================================
+// USTAWIENIA WEBSOCKET
+// ==========================================
+
+const RECONNECT_DELAY = 2000;
+const CONNECT_TIMEOUT = 10000;
+const HEARTBEAT_INTERVAL = 15000;
+const HEARTBEAT_TIMEOUT = 10000;
+
+// ==========================================
+// IKONY POKOJÓW
+// ==========================================
 
 function RoomGlyph({ icon }: { icon: RoomIcon }) {
   const props = { size: 24, strokeWidth: 1.8 };
@@ -281,15 +241,24 @@ function RoomGlyph({ icon }: { icon: RoomIcon }) {
   }
 }
 
+// ==========================================
+// GŁÓWNA APLIKACJA
+// ==========================================
+
 function App() {
   const [rooms, setRooms] = useState<Room[]>(initialRooms);
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [activeRoomId, setActiveRoomId] = useState("general");
-  const [mobileScreen, setMobileScreen] = useState<MobileScreen>("rooms");
-  const [detailsTab, setDetailsTab] = useState<DetailsTab>("about");
+
+  const [mobileScreen, setMobileScreen] =
+    useState<MobileScreen>("rooms");
+
+  const [detailsTab, setDetailsTab] =
+    useState<DetailsTab>("about");
 
   const [draft, setDraft] = useState("");
   const [search, setSearch] = useState("");
+
   const [createOpen, setCreateOpen] = useState(false);
   const [newRoomName, setNewRoomName] = useState("");
   const [newRoomPrivate, setNewRoomPrivate] = useState(false);
@@ -297,76 +266,617 @@ function App() {
   const [themeId, setThemeId] = useState<ThemeId>("emerald");
   const [notifications, setNotifications] = useState(true);
 
+  const [socketStatus, setSocketStatus] =
+    useState<SocketStatus>("connecting");
+
+  // Pozwala wymusić nowe połączenie także wtedy,
+  // gdy identyfikator pokoju się nie zmienia.
+  const [connectionVersion, setConnectionVersion] = useState(0);
+
+  const socketRef = useRef<WebSocket | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
-  const activeRoom = rooms.find((room) => room.id === activeRoomId) ?? rooms[0];
-  const theme = themeOptions.find((item) => item.id === themeId) ?? themeOptions[0];
+  // ========================================
+  // TYMCZASOWA TOŻSAMOŚĆ
+  // ========================================
+
+  const [clientId] = useState(() => {
+    const saved = sessionStorage.getItem("socalled_client_id");
+
+    if (saved) return saved;
+
+    const generated =
+      Date.now().toString(36) +
+      "-" +
+      Math.random().toString(36).slice(2, 10);
+
+    sessionStorage.setItem("socalled_client_id", generated);
+
+    return generated;
+  });
+
+  const [nickname] = useState(() => {
+    const saved = sessionStorage.getItem("socalled_nickname");
+
+    if (saved) return saved;
+
+    const generated =
+      "Gosc-" + Math.random().toString(36).slice(2, 6);
+
+    sessionStorage.setItem("socalled_nickname", generated);
+
+    return generated;
+  });
+
+  // ========================================
+  // AKTUALNY POKÓJ I WIADOMOŚCI
+  // ========================================
+
+  const activeRoom =
+    rooms.find((room) => room.id === activeRoomId) ??
+    rooms[0];
+
+  const theme =
+    themeOptions.find((item) => item.id === themeId) ??
+    themeOptions[0];
 
   const roomMessages = useMemo(
-    () => messages.filter((message) => message.roomId === activeRoomId),
+    () =>
+      messages.filter(
+        (message) => message.roomId === activeRoomId
+      ),
     [messages, activeRoomId]
   );
 
   const filteredRooms = useMemo(
     () =>
       rooms.filter((room) =>
-        room.name.toLocaleLowerCase("pl-PL").includes(
-          search.toLocaleLowerCase("pl-PL")
-        )
+        room.name
+          .toLocaleLowerCase("pl-PL")
+          .includes(search.toLocaleLowerCase("pl-PL"))
       ),
     [rooms, search]
   );
 
+  // ========================================
+  // RĘCZNE WYMUSZENIE POŁĄCZENIA
+  // ========================================
+
+  function reconnectNow() {
+    setSocketStatus("connecting");
+    setConnectionVersion((previous) => previous + 1);
+  }
+
+  // ========================================
+  // WEBSOCKET
+  // ========================================
+
+  useEffect(() => {
+    let disposed = false;
+    let currentSocket: WebSocket | null = null;
+
+    let reconnectTimer: number | undefined;
+    let connectTimer: number | undefined;
+    let heartbeatTimer: number | undefined;
+    let pongTimer: number | undefined;
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      nickname,
+    });
+
+    // Lokalny dostęp z komputera i telefonu.
+    // Backend musi działać na 0.0.0.0:8000.
+    const protocol =
+      window.location.protocol === "https:" ? "wss" : "ws";
+
+    const url =
+      `${protocol}://${window.location.hostname}:8000` +
+      `/ws/rooms/${encodeURIComponent(activeRoomId)}` +
+      `?${params.toString()}`;
+
+    function convertMessage(
+      message: ServerMessage
+    ): ChatMessage {
+      return {
+        id: message.id,
+        roomId: message.roomId,
+        author: message.author,
+        text: message.text,
+        time: new Date(message.time).toLocaleTimeString(
+          "pl-PL",
+          {
+            hour: "2-digit",
+            minute: "2-digit",
+          }
+        ),
+        mine: message.clientId === clientId,
+      };
+    }
+
+    // ======================================
+    // TIMERY
+    // ======================================
+
+    function clearConnectionTimers() {
+      if (connectTimer !== undefined) {
+        window.clearTimeout(connectTimer);
+        connectTimer = undefined;
+      }
+
+      if (heartbeatTimer !== undefined) {
+        window.clearInterval(heartbeatTimer);
+        heartbeatTimer = undefined;
+      }
+
+      if (pongTimer !== undefined) {
+        window.clearTimeout(pongTimer);
+        pongTimer = undefined;
+      }
+    }
+
+    function clearReconnectTimer() {
+      if (reconnectTimer !== undefined) {
+        window.clearTimeout(reconnectTimer);
+        reconnectTimer = undefined;
+      }
+    }
+
+    // ======================================
+    // PONAWIANIE POŁĄCZENIA
+    // ======================================
+
+    function scheduleReconnect() {
+      if (disposed || reconnectTimer !== undefined) return;
+
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = undefined;
+        connect();
+      }, RECONNECT_DELAY);
+    }
+
+    // ======================================
+    // HEARTBEAT
+    // ======================================
+
+    function sendPing(socket: WebSocket) {
+      if (disposed || document.hidden) return;
+      if (currentSocket !== socket) return;
+      if (socket.readyState !== WebSocket.OPEN) return;
+      if (pongTimer !== undefined) return;
+
+      try {
+        socket.send(
+          JSON.stringify({
+            type: "ping",
+          })
+        );
+
+        pongTimer = window.setTimeout(() => {
+          pongTimer = undefined;
+
+          if (
+            !disposed &&
+            currentSocket === socket &&
+            socket.readyState === WebSocket.OPEN
+          ) {
+            console.warn(
+              "[SoCalled] Brak odpowiedzi PONG."
+            );
+
+            socket.close(4000, "Heartbeat timeout");
+          }
+        }, HEARTBEAT_TIMEOUT);
+      } catch (error) {
+        console.error("[SoCalled] Błąd heartbeat:", error);
+        socket.close();
+      }
+    }
+
+    // ======================================
+    // NAWIĄZANIE POŁĄCZENIA
+    // ======================================
+
+    function connect() {
+      if (disposed) return;
+
+      if (
+        currentSocket &&
+        (currentSocket.readyState === WebSocket.OPEN ||
+          currentSocket.readyState === WebSocket.CONNECTING)
+      ) {
+        return;
+      }
+
+      clearReconnectTimer();
+      clearConnectionTimers();
+
+      setSocketStatus("connecting");
+
+      console.log("[SoCalled] Łączenie:", url);
+
+      let socket: WebSocket;
+
+      try {
+        socket = new WebSocket(url);
+      } catch (error) {
+        console.error(
+          "[SoCalled] Nie udało się utworzyć WebSocket:",
+          error
+        );
+
+        setSocketStatus("offline");
+        scheduleReconnect();
+        return;
+      }
+
+      currentSocket = socket;
+      socketRef.current = socket;
+
+      // Maksymalnie 10 sekund na otwarcie połączenia.
+      connectTimer = window.setTimeout(() => {
+        if (
+          !disposed &&
+          currentSocket === socket &&
+          socket.readyState === WebSocket.CONNECTING
+        ) {
+          console.warn(
+            "[SoCalled] Przekroczono czas połączenia."
+          );
+
+          socket.close();
+        }
+      }, CONNECT_TIMEOUT);
+
+      // ====================================
+      // POŁĄCZONO
+      // ====================================
+
+      socket.onopen = () => {
+        if (disposed || currentSocket !== socket) return;
+
+        if (connectTimer !== undefined) {
+          window.clearTimeout(connectTimer);
+          connectTimer = undefined;
+        }
+
+        setSocketStatus("online");
+
+        console.log(
+          "[SoCalled] Połączono:",
+          activeRoomId
+        );
+
+        // Sprawdzamy połączenie od razu.
+        sendPing(socket);
+
+        heartbeatTimer = window.setInterval(() => {
+          sendPing(socket);
+        }, HEARTBEAT_INTERVAL);
+      };
+
+      // ====================================
+      // ZDARZENIA Z SERWERA
+      // ====================================
+
+      socket.onmessage = (event) => {
+        if (disposed || currentSocket !== socket) return;
+
+        try {
+          const data = JSON.parse(event.data);
+
+          // Odpowiedź heartbeat
+          if (data.type === "pong") {
+            if (pongTimer !== undefined) {
+              window.clearTimeout(pongTimer);
+              pongTimer = undefined;
+            }
+
+            return;
+          }
+
+          // Historia wiadomości
+          if (
+            data.type === "history" &&
+            Array.isArray(data.messages)
+          ) {
+            const history = (
+              data.messages as ServerMessage[]
+            ).map(convertMessage);
+
+            setMessages((previous) => [
+              ...previous.filter(
+                (message) => message.roomId !== activeRoomId
+              ),
+              ...history,
+            ]);
+
+            const lastMessage =
+              history[history.length - 1];
+
+            setRooms((previous) =>
+              previous.map((room) =>
+                room.id === activeRoomId
+                  ? {
+                      ...room,
+                      lastMessage:
+                        lastMessage?.text ?? "Brak wiadomości",
+                      lastTime:
+                        lastMessage?.time ?? "—",
+                    }
+                  : room
+              )
+            );
+
+            return;
+          }
+
+          // Nowa wiadomość
+          if (
+            data.type === "message_created" &&
+            data.message
+          ) {
+            const message = convertMessage(
+              data.message as ServerMessage
+            );
+
+            setMessages((previous) => {
+              if (
+                previous.some(
+                  (item) => item.id === message.id
+                )
+              ) {
+                return previous;
+              }
+
+              return [...previous, message];
+            });
+
+            setRooms((previous) =>
+              previous.map((room) =>
+                room.id === activeRoomId
+                  ? {
+                      ...room,
+                      lastMessage: message.text,
+                      lastTime: message.time,
+                    }
+                  : room
+              )
+            );
+
+            return;
+          }
+
+          if (data.type === "error") {
+            console.warn(
+              "[SoCalled] Błąd serwera:",
+              data.message
+            );
+          }
+        } catch (error) {
+          console.error(
+            "[SoCalled] Błąd przetwarzania wiadomości:",
+            error
+          );
+        }
+      };
+
+      // ====================================
+      // ZAMKNIĘCIE POŁĄCZENIA
+      // ====================================
+
+      socket.onclose = (event) => {
+        if (disposed || currentSocket !== socket) return;
+
+        clearConnectionTimers();
+
+        currentSocket = null;
+
+        if (socketRef.current === socket) {
+          socketRef.current = null;
+        }
+
+        setSocketStatus("offline");
+
+        console.warn(
+          "[SoCalled] Rozłączono:",
+          event.code,
+          event.reason
+        );
+
+        scheduleReconnect();
+      };
+
+      socket.onerror = () => {
+        if (disposed || currentSocket !== socket) return;
+
+        console.warn(
+          "[SoCalled] Błąd WebSocket:",
+          url
+        );
+      };
+    }
+
+    // ======================================
+    // POWRÓT DO PRZEGLĄDARKI
+    // ======================================
+
+    function checkConnection() {
+      if (disposed || document.hidden) return;
+
+      const socket = currentSocket;
+
+      if (!socket) {
+        clearReconnectTimer();
+        connect();
+        return;
+      }
+
+      if (socket.readyState === WebSocket.OPEN) {
+        sendPing(socket);
+        return;
+      }
+
+      if (socket.readyState === WebSocket.CONNECTING) {
+        // Istnieje już timeout połączenia.
+        return;
+      }
+
+      // CLOSED albo CLOSING.
+      // Nie czekamy na przejście między pokojami.
+      currentSocket = null;
+
+      if (socketRef.current === socket) {
+        socketRef.current = null;
+      }
+
+      clearReconnectTimer();
+      connect();
+    }
+
+    function handleVisibilityChange() {
+      if (!document.hidden) {
+        checkConnection();
+      }
+    }
+
+    document.addEventListener(
+      "visibilitychange",
+      handleVisibilityChange
+    );
+
+    window.addEventListener("focus", checkConnection);
+    window.addEventListener("pageshow", checkConnection);
+    window.addEventListener("online", checkConnection);
+
+    // AUTOMATYCZNE POŁĄCZENIE PO STARCIE
+    connect();
+
+    // ======================================
+    // SPRZĄTANIE
+    // ======================================
+
+    return () => {
+      disposed = true;
+
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange
+      );
+
+      window.removeEventListener("focus", checkConnection);
+      window.removeEventListener("pageshow", checkConnection);
+      window.removeEventListener("online", checkConnection);
+
+      clearReconnectTimer();
+      clearConnectionTimers();
+
+      if (currentSocket) {
+        currentSocket.close();
+      }
+
+      socketRef.current = null;
+    };
+  }, [
+    activeRoomId,
+    clientId,
+    nickname,
+    connectionVersion,
+  ]);
+
+  // ========================================
+  // PRZEWIJANIE CZATU
+  // ========================================
+
   useEffect(() => {
     if (chatScrollRef.current) {
-      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+      chatScrollRef.current.scrollTop =
+        chatScrollRef.current.scrollHeight;
     }
   }, [activeRoomId, messages, mobileScreen]);
 
+  // ========================================
+  // OTWIERANIE POKOJU
+  // ========================================
+
   function openRoom(roomId: string) {
-    setActiveRoomId(roomId);
     setMobileScreen("chat");
     setDetailsTab("about");
+    setDraft("");
 
     setRooms((previous) =>
       previous.map((room) =>
-        room.id === roomId ? { ...room, unread: 0 } : room
+        room.id === roomId
+          ? { ...room, unread: 0 }
+          : room
       )
     );
+
+    if (roomId !== activeRoomId) {
+      // Zmiana pokoju uruchamia nowy WebSocket.
+      setSocketStatus("connecting");
+      setActiveRoomId(roomId);
+      return;
+    }
+
+    // Kluczowa poprawka:
+    // kliknięcie tego samego pokoju również
+    // może odtworzyć utracone połączenie.
+    if (
+      socketStatus !== "online" ||
+      socketRef.current?.readyState !== WebSocket.OPEN
+    ) {
+      reconnectNow();
+    }
   }
+
+  // ========================================
+  // WYSYŁANIE WIADOMOŚCI
+  // ========================================
 
   function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const text = draft.trim();
+    const socket = socketRef.current;
+
     if (!text) return;
 
-    const time = new Date().toLocaleTimeString("pl-PL", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    if (
+      !socket ||
+      socket.readyState !== WebSocket.OPEN ||
+      socketStatus !== "online"
+    ) {
+      console.warn(
+        "[SoCalled] Brak aktywnego połączenia."
+      );
 
-    const message: ChatMessage = {
-      id: `message-${Date.now()}-${Math.random()}`,
-      roomId: activeRoomId,
-      author: "Ty",
-      time,
-      text,
-      mine: true,
-    };
+      reconnectNow();
+      return;
+    }
 
-    setMessages((previous) => [...previous, message]);
+    try {
+      socket.send(
+        JSON.stringify({
+          type: "send_message",
+          text,
+        })
+      );
 
-    setRooms((previous) =>
-      previous.map((room) =>
-        room.id === activeRoomId
-          ? { ...room, lastMessage: text, lastTime: time, unread: 0 }
-          : room
-      )
-    );
+      setDraft("");
+    } catch (error) {
+      console.error(
+        "[SoCalled] Nie udało się wysłać wiadomości:",
+        error
+      );
 
-    setDraft("");
+      reconnectNow();
+    }
   }
+
+  // ========================================
+  // TWORZENIE POKOJU
+  // ========================================
 
   function createRoom(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -384,20 +894,28 @@ function App() {
       topic: "Tutaj zaczyna się nowa rozmowa.",
       members: 1,
       online: 1,
-      lastMessage: "Pokój został utworzony.",
-      lastTime: "Teraz",
+      lastMessage: "Brak wiadomości",
+      lastTime: "—",
       unread: 0,
       isPrivate: newRoomPrivate,
     };
 
     setRooms((previous) => [...previous, room]);
+
     setActiveRoomId(id);
+    setSocketStatus("connecting");
     setMobileScreen("chat");
     setDetailsTab("about");
+
     setCreateOpen(false);
     setNewRoomName("");
     setNewRoomPrivate(false);
+    setDraft("");
   }
+
+  // ========================================
+  // INTERFEJS
+  // ========================================
 
   return (
     <div
@@ -409,22 +927,30 @@ function App() {
         } as CSSProperties
       }
     >
-      {/* DESKTOP — LEWY PANEL */}
+      {/* ====================================
+          DESKTOP — LEWY PANEL
+          ==================================== */}
 
       <aside className="desktop-sidebar">
         <div className="sidebar-brand">
           <div className="brand-symbol">SO</div>
+
           <div>
             <div className="brand-name">
               So<span>Called</span>
             </div>
-            <div className="brand-subtitle">YOUR SPACE. YOUR VOICE.</div>
+
+            <div className="brand-subtitle">
+              YOUR SPACE. YOUR VOICE.
+            </div>
           </div>
         </div>
 
         <div className="sidebar-section-title">
           <div>
-            <span className="eyebrow">TWOJA PRZESTRZEŃ</span>
+            <span className="eyebrow">
+              TWOJA PRZESTRZEŃ
+            </span>
             <h2>Pokoje</h2>
           </div>
 
@@ -444,7 +970,9 @@ function App() {
             {rooms.map((room) => (
               <div
                 className={`hex-slot ${
-                  activeRoomId === room.id ? "hex-slot--active" : ""
+                  activeRoomId === room.id
+                    ? "hex-slot--active"
+                    : ""
                 }`}
                 key={room.id}
               >
@@ -464,7 +992,9 @@ function App() {
                   </span>
                 </button>
 
-                <span className="hex-tooltip">{room.name}</span>
+                <span className="hex-tooltip">
+                  {room.name}
+                </span>
               </div>
             ))}
           </div>
@@ -472,27 +1002,50 @@ function App() {
 
         <div className="sidebar-footer">
           <div className="community-status">
-            <span className="status-dot" />
-            <span>SoCalled jest online</span>
+            <span
+              className="status-dot"
+              style={{
+                background:
+                  socketStatus === "online"
+                    ? undefined
+                    : "#d68c72",
+              }}
+            />
+
+            <span>
+              {socketStatus === "online"
+                ? "SoCalled jest online"
+                : "Przywracanie połączenia..."}
+            </span>
           </div>
 
           <div className="account-card">
-            <div className="account-avatar">T</div>
+            <div className="account-avatar">
+              {nickname.slice(0, 1).toUpperCase()}
+            </div>
+
             <div className="account-copy">
-              <strong>Ty</strong>
+              <strong>{nickname}</strong>
               <span>Tryb demonstracyjny</span>
             </div>
-            <Sparkles size={17} className="account-sparkle" />
+
+            <Sparkles
+              size={17}
+              className="account-sparkle"
+            />
           </div>
         </div>
       </aside>
 
-      {/* MOBILE — LISTA POKOJÓW */}
+      {/* ====================================
+          MOBILE — LISTA POKOJÓW
+          ==================================== */}
 
       <section className="mobile-room-screen">
         <header className="mobile-home-header">
           <div className="mobile-brand">
             <div className="brand-symbol">SO</div>
+
             <div className="brand-name">
               So<span>Called</span>
             </div>
@@ -510,15 +1063,25 @@ function App() {
 
         <div className="mobile-welcome">
           <span className="eyebrow">WITAJ W SOCALLED</span>
-          <h1>Twoje pokoje<span className="accent-dot">.</span></h1>
-          <p>Znajdź swoją społeczność i zacznij rozmawiać.</p>
+
+          <h1>
+            Twoje pokoje
+            <span className="accent-dot">.</span>
+          </h1>
+
+          <p>
+            Znajdź swoją społeczność i zacznij rozmawiać.
+          </p>
         </div>
 
         <label className="mobile-search">
           <Search size={19} />
+
           <input
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) =>
+              setSearch(event.target.value)
+            }
             placeholder="Szukaj pokoju..."
             aria-label="Szukaj pokoju"
           />
@@ -550,12 +1113,21 @@ function App() {
                   <strong>{room.name}</strong>
                   <time>{room.lastTime}</time>
                 </div>
+
                 <div className="mobile-room-line">
-                  <span className="mobile-preview">{room.lastMessage}</span>
+                  <span className="mobile-preview">
+                    {room.lastMessage}
+                  </span>
+
                   {room.unread > 0 ? (
-                    <span className="unread-badge">{room.unread}</span>
+                    <span className="unread-badge">
+                      {room.unread}
+                    </span>
                   ) : (
-                    <ChevronRight size={17} className="row-chevron" />
+                    <ChevronRight
+                      size={17}
+                      className="row-chevron"
+                    />
                   )}
                 </div>
               </div>
@@ -563,23 +1135,37 @@ function App() {
           ))}
 
           {filteredRooms.length === 0 && (
-            <p className="empty-search">Nie znaleziono takiego pokoju.</p>
+            <p className="empty-search">
+              Nie znaleziono takiego pokoju.
+            </p>
           )}
         </div>
 
-        <nav className="mobile-bottom-nav" aria-label="Nawigacja">
-          <button type="button" className="mobile-nav-active">
+        <nav
+          className="mobile-bottom-nav"
+          aria-label="Nawigacja"
+        >
+          <button
+            type="button"
+            className="mobile-nav-active"
+          >
             <MessageCircle size={22} />
             <span>Pokoje</span>
           </button>
-          <button type="button" onClick={() => setCreateOpen(true)}>
+
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+          >
             <Plus size={22} />
             <span>Utwórz</span>
           </button>
         </nav>
       </section>
 
-      {/* ŚRODEK — CZAT */}
+      {/* ====================================
+          GŁÓWNY CZAT
+          ==================================== */}
 
       <main className="chat-panel">
         <header className="chat-header">
@@ -603,8 +1189,21 @@ function App() {
 
           <div className="chat-header-actions">
             <span className="online-indicator">
-              <span className="status-dot" />
-              {activeRoom.online} online
+              <span
+                className="status-dot"
+                style={{
+                  background:
+                    socketStatus === "online"
+                      ? undefined
+                      : "#d68c72",
+                }}
+              />
+
+              {socketStatus === "online"
+                ? "Połączono"
+                : socketStatus === "connecting"
+                  ? "Łączenie..."
+                  : "Offline"}
             </span>
 
             <button
@@ -635,19 +1234,74 @@ function App() {
           </div>
         </header>
 
-        <div className="chat-scroll" ref={chatScrollRef}>
+        {/* STATUS POŁĄCZENIA */}
+
+        {socketStatus !== "online" && (
+          <div
+            role="status"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+              flexWrap: "wrap",
+              padding: "10px 14px",
+              background: "#35291a",
+              color: "#f0cda6",
+              fontSize: 12,
+              textAlign: "center",
+            }}
+          >
+            <WifiOff size={16} />
+
+            <span>
+              {socketStatus === "connecting"
+                ? "Łączenie z serwerem..."
+                : "Połączenie przerwane. Ponawiam próbę..."}
+            </span>
+
+            <button
+              type="button"
+              onClick={reconnectNow}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                padding: "6px 10px",
+                border: "1px solid #96724b",
+                borderRadius: 8,
+                background: "#493522",
+                color: "#f0cda6",
+                cursor: "pointer",
+              }}
+            >
+              <RefreshCw size={14} />
+              Połącz ponownie
+            </button>
+          </div>
+        )}
+
+        {/* HISTORIA WIADOMOŚCI */}
+
+        <div
+          className="chat-scroll"
+          ref={chatScrollRef}
+        >
           <div className="chat-intro">
             <div className="chat-intro-icon">
               <RoomGlyph icon={activeRoom.icon} />
             </div>
+
             <span className="eyebrow">POKÓJ SOCALLED</span>
+
             <h2>Witaj w {activeRoom.name}.</h2>
+
             <p>{activeRoom.description}</p>
           </div>
 
           <div className="date-divider">
             <span />
-            <p>Przykładowa konwersacja</p>
+            <p>Historia rozmowy</p>
             <span />
           </div>
 
@@ -655,20 +1309,28 @@ function App() {
             {roomMessages.length === 0 ? (
               <div className="empty-messages">
                 <MessageCircle size={29} />
+
                 <h3>Jeszcze tu cicho.</h3>
-                <p>Napisz pierwszą wiadomość w tym pokoju.</p>
+
+                <p>
+                  Napisz pierwszą wiadomość w tym pokoju.
+                </p>
               </div>
             ) : (
               roomMessages.map((message) => (
                 <article
                   key={message.id}
                   className={`message-row ${
-                    message.mine ? "message-row--mine" : ""
+                    message.mine
+                      ? "message-row--mine"
+                      : ""
                   }`}
                 >
                   {!message.mine && (
                     <div className="message-avatar">
-                      {message.author.slice(0, 1).toUpperCase()}
+                      {message.author
+                        .slice(0, 1)
+                        .toUpperCase()}
                     </div>
                   )}
 
@@ -677,7 +1339,10 @@ function App() {
                       <strong>{message.author}</strong>
                       <time>{message.time}</time>
                     </div>
-                    <div className="message-bubble">{message.text}</div>
+
+                    <div className="message-bubble">
+                      {message.text}
+                    </div>
                   </div>
                 </article>
               ))
@@ -685,12 +1350,21 @@ function App() {
           </div>
         </div>
 
+        {/* WYSYŁANIE WIADOMOŚCI */}
+
         <div className="composer-area">
-          <form className="message-composer" onSubmit={sendMessage}>
+          <form
+            className="message-composer"
+            onSubmit={sendMessage}
+          >
             <input
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              placeholder={`Wiadomość do ${activeRoom.name}...`}
+              placeholder={
+                socketStatus === "online"
+                  ? `Wiadomość do ${activeRoom.name}...`
+                  : "Oczekiwanie na połączenie..."
+              }
               aria-label="Treść wiadomości"
               maxLength={2000}
             />
@@ -698,26 +1372,37 @@ function App() {
             <button
               type="submit"
               className="send-button"
-              disabled={!draft.trim()}
+              disabled={
+                !draft.trim() ||
+                socketStatus !== "online"
+              }
               aria-label="Wyślij wiadomość"
             >
               <Send size={20} />
             </button>
           </form>
+
           <p className="composer-hint">
-            Wersja demonstracyjna — wiadomości są lokalne.
+            {socketStatus === "online"
+              ? "Połączono z SoCalled — wiadomości na żywo."
+              : "Przywracanie połączenia z serwerem..."}
           </p>
         </div>
       </main>
 
-      {/* PRAWY PANEL — INFORMACJE I USTAWIENIA */}
+      {/* ====================================
+          PRAWY PANEL — INFORMACJE
+          ==================================== */}
 
       <aside className="details-panel">
         <header className="details-header">
           <div>
-            <span className="eyebrow">TWOJA SPOŁECZNOŚĆ</span>
+            <span className="eyebrow">
+              TWOJA SPOŁECZNOŚĆ
+            </span>
             <h2>Informacje</h2>
           </div>
+
           <button
             type="button"
             className="icon-button mobile-only"
@@ -737,29 +1422,43 @@ function App() {
                 <RoomGlyph icon={activeRoom.icon} />
               )}
             </div>
+
             <h3>{activeRoom.name}</h3>
             <p>{activeRoom.topic}</p>
+
             <span className="room-type-pill">
               {activeRoom.isPrivate ? (
                 <LockKeyhole size={13} />
               ) : (
                 <Globe2 size={13} />
               )}
-              {activeRoom.isPrivate ? "Pokój prywatny" : "Pokój publiczny"}
+
+              {activeRoom.isPrivate
+                ? "Pokój prywatny"
+                : "Pokój publiczny"}
             </span>
           </div>
 
           <div className="details-tabs">
             <button
               type="button"
-              className={detailsTab === "about" ? "tab-active" : ""}
+              className={
+                detailsTab === "about"
+                  ? "tab-active"
+                  : ""
+              }
               onClick={() => setDetailsTab("about")}
             >
               O pokoju
             </button>
+
             <button
               type="button"
-              className={detailsTab === "settings" ? "tab-active" : ""}
+              className={
+                detailsTab === "settings"
+                  ? "tab-active"
+                  : ""
+              }
               onClick={() => setDetailsTab("settings")}
             >
               Ustawienia
@@ -777,12 +1476,13 @@ function App() {
                 <div>
                   <Users size={19} />
                   <strong>{activeRoom.members}</strong>
-                  <span>Członków</span>
+                  <span>Członków (demo)</span>
                 </div>
+
                 <div>
                   <span className="status-dot" />
                   <strong>{activeRoom.online}</strong>
-                  <span>Online</span>
+                  <span>Online (demo)</span>
                 </div>
               </div>
 
@@ -791,15 +1491,32 @@ function App() {
                   <h4>PRZYKŁADOWI UCZESTNICY</h4>
                 </div>
 
-                {["Ty", "Maja", "Kuba", "Ola"].map((name, index) => (
-                  <div className="member-row" key={name}>
-                    <div className={`member-avatar member-avatar-${index}`}>
-                      {name.slice(0, 1)}
+                {[
+                  nickname,
+                  "Maja",
+                  "Kuba",
+                  "Ola",
+                ].map((name, index) => (
+                  <div
+                    className="member-row"
+                    key={`${index}-${name}`}
+                  >
+                    <div
+                      className={`member-avatar member-avatar-${index}`}
+                    >
+                      {name.slice(0, 1).toUpperCase()}
                     </div>
+
                     <div>
                       <strong>{name}</strong>
-                      <span>{index === 0 ? "Twój profil" : "Online"}</span>
+
+                      <span>
+                        {index === 0
+                          ? "Twój profil"
+                          : "Przykładowy użytkownik"}
+                      </span>
                     </div>
+
                     <span className="member-online-dot" />
                   </div>
                 ))}
@@ -807,9 +1524,11 @@ function App() {
 
               <div className="details-notice">
                 <ShieldCheck size={20} />
+
                 <p>
-                  To podgląd interfejsu. Prawdziwe uprawnienia
-                  i członkostwo dodamy razem z backendem.
+                  Czat działa przez WebSocket.
+                  Członkostwo i uprawnienia dodamy
+                  w kolejnych etapach.
                 </p>
               </div>
             </div>
@@ -817,8 +1536,10 @@ function App() {
             <div className="details-content">
               <div className="details-section">
                 <h4>
-                  <Palette size={16} /> MOTYW KOLORYSTYCZNY
+                  <Palette size={16} />
+                  MOTYW KOLORYSTYCZNY
                 </h4>
+
                 <p>Wybierz kolor akcentów aplikacji.</p>
 
                 <div className="theme-options">
@@ -827,17 +1548,26 @@ function App() {
                       type="button"
                       key={option.id}
                       className={`theme-option ${
-                        themeId === option.id ? "theme-option--active" : ""
+                        themeId === option.id
+                          ? "theme-option--active"
+                          : ""
                       }`}
-                      onClick={() => setThemeId(option.id)}
+                      onClick={() =>
+                        setThemeId(option.id)
+                      }
                       style={
-                        { "--swatch": option.hex } as CSSProperties
+                        {
+                          "--swatch": option.hex,
+                        } as CSSProperties
                       }
                       aria-pressed={themeId === option.id}
                     >
                       <span className="theme-swatch">
-                        {themeId === option.id && <Check size={16} />}
+                        {themeId === option.id && (
+                          <Check size={16} />
+                        )}
                       </span>
+
                       <span>{option.label}</span>
                     </button>
                   ))}
@@ -846,18 +1576,34 @@ function App() {
 
               <div className="details-section">
                 <h4>POWIADOMIENIA</h4>
+
                 <button
                   type="button"
                   className="settings-row"
-                  onClick={() => setNotifications((current) => !current)}
+                  onClick={() =>
+                    setNotifications(
+                      (current) => !current
+                    )
+                  }
                   aria-pressed={notifications}
                 >
-                  {notifications ? <Bell size={19} /> : <BellOff size={19} />}
+                  {notifications ? (
+                    <Bell size={19} />
+                  ) : (
+                    <BellOff size={19} />
+                  )}
+
                   <span>Powiadomienia</span>
-                  <span className={`toggle ${notifications ? "toggle-on" : ""}`}>
+
+                  <span
+                    className={`toggle ${
+                      notifications ? "toggle-on" : ""
+                    }`}
+                  >
                     <span />
                   </span>
                 </button>
+
                 <p className="setting-hint">
                   Na razie to ustawienie demonstracyjne.
                 </p>
@@ -865,9 +1611,11 @@ function App() {
 
               <div className="details-notice">
                 <ShieldCheck size={20} />
+
                 <p>
-                  Ustawienia prywatności oraz zarządzanie użytkownikami
-                  pojawią się w kolejnych etapach.
+                  Personalizację pokojów, zmianę nazwy,
+                  zdjęcia i pseudonimy uczestników
+                  dodamy w kolejnych wersjach.
                 </p>
               </div>
             </div>
@@ -875,7 +1623,9 @@ function App() {
         </div>
       </aside>
 
-      {/* OKNO TWORZENIA POKOJU */}
+      {/* ====================================
+          TWORZENIE POKOJU
+          ==================================== */}
 
       {createOpen && (
         <div className="modal-backdrop">
@@ -889,6 +1639,7 @@ function App() {
               <div className="modal-icon">
                 <Plus size={24} />
               </div>
+
               <button
                 type="button"
                 className="icon-button"
@@ -899,18 +1650,33 @@ function App() {
               </button>
             </div>
 
-            <span className="eyebrow">NOWA PRZESTRZEŃ</span>
-            <h2 id="create-room-title">Utwórz pokój</h2>
+            <span className="eyebrow">
+              NOWA PRZESTRZEŃ
+            </span>
+
+            <h2 id="create-room-title">
+              Utwórz pokój
+            </h2>
+
             <p className="modal-description">
-              Każda społeczność zaczyna się od jednej rozmowy.
+              Każda społeczność zaczyna się
+              od jednej rozmowy.
             </p>
 
-            <form onSubmit={createRoom} className="create-form">
-              <label htmlFor="room-name">Nazwa pokoju</label>
+            <form
+              onSubmit={createRoom}
+              className="create-form"
+            >
+              <label htmlFor="room-name">
+                Nazwa pokoju
+              </label>
+
               <input
                 id="room-name"
                 value={newRoomName}
-                onChange={(event) => setNewRoomName(event.target.value)}
+                onChange={(event) =>
+                  setNewRoomName(event.target.value)
+                }
                 maxLength={28}
                 placeholder="np. Nasza ekipa"
                 required
@@ -922,15 +1688,19 @@ function App() {
                   type="checkbox"
                   checked={newRoomPrivate}
                   onChange={(event) =>
-                    setNewRoomPrivate(event.target.checked)
+                    setNewRoomPrivate(
+                      event.target.checked
+                    )
                   }
                 />
+
                 <LockKeyhole size={18} />
                 <span>Pokój prywatny</span>
               </label>
 
               <p className="modal-hint">
-                Prywatność jest na razie tylko oznaczeniem w interfejsie.
+                Prywatność jest na razie tylko
+                oznaczeniem demonstracyjnym.
               </p>
 
               <button
