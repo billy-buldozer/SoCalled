@@ -1,6 +1,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, FormEvent, ChangeEvent } from "react";
+import type {
+  CSSProperties,
+  FormEvent,
+  ChangeEvent,
+} from "react";
 
 import {
   ArrowLeft,
@@ -11,6 +15,7 @@ import {
   ChevronRight,
   Code2,
   Coffee,
+  Crown,
   Gamepad2,
   Globe2,
   Hash,
@@ -31,6 +36,7 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
+  UserRound,
   Users,
   WifiOff,
   X,
@@ -39,6 +45,7 @@ import {
 import "./App.css";
 import "./message-actions.css";
 import "./room-customization.css";
+import "./room-members.css";
 
 // ==========================================
 // TYPY
@@ -57,6 +64,8 @@ type MobileScreen = "rooms" | "chat" | "details";
 type DetailsTab = "about" | "settings";
 type SocketStatus = "connecting" | "online" | "offline";
 
+type MemberRole = "owner" | "moderator" | "member";
+
 type ServerRoom = {
   id: string;
   name: string;
@@ -66,19 +75,29 @@ type ServerRoom = {
   image: string | null;
   isPrivate: boolean;
   ownerId: string | null;
+  memberCount: number;
+  onlineCount: number;
 };
 
 type Room = ServerRoom & {
-  members: number;
-  online: number;
   lastMessage: string;
   lastTime: string;
   unread: number;
 };
 
+type RoomMember = {
+  clientId: string;
+  username: string;
+  nickname: string | null;
+  displayName: string;
+  role: MemberRole;
+  online: boolean;
+};
+
 type ChatMessage = {
   id: string;
   roomId: string;
+  clientId: string;
   author: string;
   time: string;
   text: string;
@@ -110,8 +129,8 @@ const initialRooms: Room[] = [
     image: null,
     isPrivate: false,
     ownerId: null,
-    members: 28,
-    online: 8,
+    memberCount: 0,
+    onlineCount: 0,
     lastMessage: "Brak wiadomości",
     lastTime: "—",
     unread: 0,
@@ -125,8 +144,8 @@ const initialRooms: Room[] = [
     image: null,
     isPrivate: false,
     ownerId: null,
-    members: 19,
-    online: 6,
+    memberCount: 0,
+    onlineCount: 0,
     lastMessage: "Brak wiadomości",
     lastTime: "—",
     unread: 0,
@@ -140,8 +159,8 @@ const initialRooms: Room[] = [
     image: null,
     isPrivate: false,
     ownerId: null,
-    members: 15,
-    online: 5,
+    memberCount: 0,
+    onlineCount: 0,
     lastMessage: "Brak wiadomości",
     lastTime: "—",
     unread: 0,
@@ -155,8 +174,8 @@ const initialRooms: Room[] = [
     image: null,
     isPrivate: false,
     ownerId: null,
-    members: 24,
-    online: 4,
+    memberCount: 0,
+    onlineCount: 0,
     lastMessage: "Brak wiadomości",
     lastTime: "—",
     unread: 0,
@@ -170,8 +189,8 @@ const initialRooms: Room[] = [
     image: null,
     isPrivate: false,
     ownerId: null,
-    members: 12,
-    online: 3,
+    memberCount: 0,
+    onlineCount: 0,
     lastMessage: "Brak wiadomości",
     lastTime: "—",
     unread: 0,
@@ -185,8 +204,8 @@ const initialRooms: Room[] = [
     image: null,
     isPrivate: false,
     ownerId: null,
-    members: 31,
-    online: 9,
+    memberCount: 0,
+    onlineCount: 0,
     lastMessage: "Brak wiadomości",
     lastTime: "—",
     unread: 0,
@@ -200,8 +219,8 @@ const initialRooms: Room[] = [
     image: null,
     isPrivate: false,
     ownerId: null,
-    members: 11,
-    online: 2,
+    memberCount: 0,
+    onlineCount: 0,
     lastMessage: "Brak wiadomości",
     lastTime: "—",
     unread: 0,
@@ -246,7 +265,7 @@ const availableIcons: RoomIcon[] = [
 ];
 
 // ==========================================
-// WEBSOCKET
+// USTAWIENIA WEBSOCKET
 // ==========================================
 
 const RECONNECT_DELAY = 2000;
@@ -255,7 +274,7 @@ const HEARTBEAT_INTERVAL = 15000;
 const HEARTBEAT_TIMEOUT = 10000;
 
 // ==========================================
-// POMOCNICZE FUNKCJE
+// FUNKCJE POMOCNICZE
 // ==========================================
 
 function makeRequestId(): string {
@@ -279,16 +298,44 @@ function mergeRoom(
 ): Room {
   return {
     ...incoming,
-    members: existing?.members ?? 1,
-    online: existing?.online ?? 1,
-    lastMessage: existing?.lastMessage ?? "Brak wiadomości",
+    lastMessage:
+      existing?.lastMessage ?? "Brak wiadomości",
     lastTime: existing?.lastTime ?? "—",
     unread: existing?.unread ?? 0,
   };
 }
 
+function roleLabel(role: MemberRole): string {
+  switch (role) {
+    case "owner":
+      return "Właściciel";
+    case "moderator":
+      return "Moderator";
+    default:
+      return "Uczestnik";
+  }
+}
+
+function RoleIcon({ role }: { role: MemberRole }) {
+  switch (role) {
+    case "owner":
+      return <Crown size={14} />;
+    case "moderator":
+      return <ShieldCheck size={14} />;
+    default:
+      return <UserRound size={14} />;
+  }
+}
+
+// ==========================================
+// IKONY POKOJÓW
+// ==========================================
+
 function RoomGlyph({ icon }: { icon: RoomIcon }) {
-  const props = { size: 24, strokeWidth: 1.8 };
+  const props = {
+    size: 24,
+    strokeWidth: 1.8,
+  };
 
   switch (icon) {
     case "game":
@@ -327,13 +374,15 @@ function RoomVisual({ room }: { room: Room }) {
 }
 
 // ==========================================
-// KOMPRESJA ZDJĘCIA W PRZEGLĄDARCE
+// PRZYGOTOWANIE ZDJĘCIA POKOJU
 // ==========================================
 
 function prepareRoomImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     if (file.size > 8 * 1024 * 1024) {
-      reject(new Error("Zdjęcie może mieć maksymalnie 8 MB."));
+      reject(
+        new Error("Zdjęcie może mieć maksymalnie 8 MB.")
+      );
       return;
     }
 
@@ -353,15 +402,18 @@ function prepareRoomImage(file: File): Promise<string> {
         const context = canvas.getContext("2d");
 
         if (!context) {
-          throw new Error("Nie można przetworzyć zdjęcia.");
+          throw new Error(
+            "Nie można przetworzyć zdjęcia."
+          );
         }
 
-        // Zmniejszamy zdjęcie, aż zmieści się
-        // w limicie pamięci backendu.
         for (const maxSize of [512, 400, 320, 256, 192]) {
           const scale = Math.min(
             1,
-            maxSize / Math.max(image.width, image.height)
+            maxSize / Math.max(
+              image.width,
+              image.height
+            )
           );
 
           canvas.width = Math.max(
@@ -394,8 +446,6 @@ function prepareRoomImage(file: File): Promise<string> {
             0.72
           );
 
-          // Safari lub starsza przeglądarka
-          // może nie obsługiwać zapisu WEBP.
           if (!result.startsWith("data:image/webp;")) {
             result = canvas.toDataURL(
               "image/jpeg",
@@ -421,9 +471,10 @@ function prepareRoomImage(file: File): Promise<string> {
 
     image.onerror = () => {
       URL.revokeObjectURL(objectUrl);
+
       reject(
         new Error(
-          "Przeglądarka nie potrafi odczytać tego zdjęcia."
+          "Przeglądarka nie może odczytać tego zdjęcia."
         )
       );
     };
@@ -438,12 +489,19 @@ function prepareRoomImage(file: File): Promise<string> {
 
 function App() {
   // ========================================
-  // GŁÓWNY STAN
+  // POKOJE I WIADOMOŚCI
   // ========================================
 
   const [rooms, setRooms] = useState<Room[]>(initialRooms);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [activeRoomId, setActiveRoomId] = useState("general");
+
+  const [messages, setMessages] =
+    useState<ChatMessage[]>([]);
+
+  const [activeRoomId, setActiveRoomId] =
+    useState("general");
+
+  const [membersByRoom, setMembersByRoom] =
+    useState<Record<string, RoomMember[]>>({});
 
   const [mobileScreen, setMobileScreen] =
     useState<MobileScreen>("rooms");
@@ -451,17 +509,34 @@ function App() {
   const [detailsTab, setDetailsTab] =
     useState<DetailsTab>("about");
 
+  // ========================================
+  // FORMULARZ WIADOMOŚCI
+  // ========================================
+
   const [draft, setDraft] = useState("");
   const [search, setSearch] = useState("");
 
+  // ========================================
+  // TWORZENIE POKOJU
+  // ========================================
+
   const [createOpen, setCreateOpen] = useState(false);
   const [newRoomName, setNewRoomName] = useState("");
-  const [newRoomPrivate, setNewRoomPrivate] = useState(false);
+  const [newRoomPrivate, setNewRoomPrivate] =
+    useState(false);
+
   const [createBusy, setCreateBusy] = useState(false);
   const [createError, setCreateError] = useState("");
 
-  const [themeId, setThemeId] = useState<ThemeId>("emerald");
-  const [notifications, setNotifications] = useState(true);
+  // ========================================
+  // USTAWIENIA
+  // ========================================
+
+  const [themeId, setThemeId] =
+    useState<ThemeId>("emerald");
+
+  const [notifications, setNotifications] =
+    useState(true);
 
   // ========================================
   // WEBSOCKET
@@ -470,13 +545,16 @@ function App() {
   const [socketStatus, setSocketStatus] =
     useState<SocketStatus>("connecting");
 
-  const [connectionVersion, setConnectionVersion] = useState(0);
+  const [connectionVersion, setConnectionVersion] =
+    useState(0);
 
   const socketRef = useRef<WebSocket | null>(null);
+
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
   const createRequestRef = useRef<string | null>(null);
   const saveRequestRef = useRef<string | null>(null);
+  const memberRequestRef = useRef<string | null>(null);
 
   // ========================================
   // EDYCJA WIADOMOŚCI
@@ -500,15 +578,38 @@ function App() {
   // ========================================
 
   const [roomName, setRoomName] = useState("");
-  const [roomDescription, setRoomDescription] = useState("");
+  const [roomDescription, setRoomDescription] =
+    useState("");
+
   const [roomTopic, setRoomTopic] = useState("");
-  const [roomIcon, setRoomIcon] = useState<RoomIcon>("hash");
-  const [roomImage, setRoomImage] = useState<string | null>(null);
+
+  const [roomIcon, setRoomIcon] =
+    useState<RoomIcon>("hash");
+
+  const [roomImage, setRoomImage] =
+    useState<string | null>(null);
 
   const [roomSaving, setRoomSaving] = useState(false);
   const [imageBusy, setImageBusy] = useState(false);
+
   const [roomError, setRoomError] = useState("");
   const [roomSuccess, setRoomSuccess] = useState("");
+
+  // ========================================
+  // UCZESTNICY I ROLE
+  // ========================================
+
+  const [editingMemberId, setEditingMemberId] =
+    useState<string | null>(null);
+
+  const [memberNickname, setMemberNickname] =
+    useState("");
+
+  const [memberSaving, setMemberSaving] =
+    useState(false);
+
+  const [memberError, setMemberError] = useState("");
+  const [memberSuccess, setMemberSuccess] = useState("");
 
   // ========================================
   // TYMCZASOWA TOŻSAMOŚĆ
@@ -539,7 +640,8 @@ function App() {
     if (saved) return saved;
 
     const generated =
-      "Gosc-" + Math.random().toString(36).slice(2, 6);
+      "Gosc-" +
+      Math.random().toString(36).slice(2, 6);
 
     sessionStorage.setItem(
       "socalled_nickname",
@@ -557,18 +659,44 @@ function App() {
     rooms.find((room) => room.id === activeRoomId) ??
     rooms[0];
 
-  const canEditRoom =
-    activeRoom.ownerId === null ||
+  const activeMembers =
+    membersByRoom[activeRoomId] ?? [];
+
+  const currentMember = activeMembers.find(
+    (member) => member.clientId === clientId
+  );
+
+  const myRole: MemberRole =
+    currentMember?.role ??
+    (activeRoom.ownerId === clientId
+      ? "owner"
+      : "member");
+
+  const isRoomOwner =
     activeRoom.ownerId === clientId;
 
+  const canEditRoom =
+    activeRoom.ownerId === null ||
+    isRoomOwner;
+
+  const canModerateMessages =
+    myRole === "owner" ||
+    myRole === "moderator";
+
   const theme =
-    themeOptions.find((option) => option.id === themeId) ??
-    themeOptions[0];
+    themeOptions.find(
+      (option) => option.id === themeId
+    ) ?? themeOptions[0];
+
+  // ========================================
+  // FILTROWANIE
+  // ========================================
 
   const roomMessages = useMemo(
     () =>
       messages.filter(
-        (message) => message.roomId === activeRoomId
+        (message) =>
+          message.roomId === activeRoomId
       ),
     [messages, activeRoomId]
   );
@@ -578,13 +706,15 @@ function App() {
       rooms.filter((room) =>
         room.name
           .toLocaleLowerCase("pl-PL")
-          .includes(search.toLocaleLowerCase("pl-PL"))
+          .includes(
+            search.toLocaleLowerCase("pl-PL")
+          )
       ),
     [rooms, search]
   );
 
   // ========================================
-  // SYNCHRONIZACJA EDYTORA Z POKOJEM
+  // SYNCHRONIZACJA EDYTORA POKOJU
   // ========================================
 
   useEffect(() => {
@@ -593,6 +723,7 @@ function App() {
     setRoomTopic(activeRoom.topic);
     setRoomIcon(activeRoom.icon);
     setRoomImage(activeRoom.image);
+
     setRoomError("");
     setRoomSuccess("");
   }, [
@@ -605,12 +736,25 @@ function App() {
   ]);
 
   // ========================================
-  // PONOWNE POŁĄCZENIE
+  // ZMIANA POKOJU — RESET EDYTORA NICKÓW
+  // ========================================
+
+  useEffect(() => {
+    setEditingMemberId(null);
+    setMemberNickname("");
+    setMemberError("");
+    setMemberSuccess("");
+  }, [activeRoomId]);
+
+  // ========================================
+  // WYMUŚ PONOWNE POŁĄCZENIE
   // ========================================
 
   function reconnectNow() {
     setSocketStatus("connecting");
-    setConnectionVersion((previous) => previous + 1);
+    setConnectionVersion(
+      (previous) => previous + 1
+    );
   }
 
   // ========================================
@@ -631,15 +775,20 @@ function App() {
       nickname,
     });
 
+    // Lokalna sieć / hotspot.
     const protocol =
-      window.location.protocol === "https:" ? "wss" : "ws";
+      window.location.protocol === "https:"
+        ? "wss"
+        : "ws";
 
-    // Lokalny serwer na laptopie.
-    // Telefon korzysta z adresu IP laptopa.
     const url =
       `${protocol}://${window.location.hostname}:8000` +
       `/ws/rooms/${encodeURIComponent(activeRoomId)}` +
       `?${params.toString()}`;
+
+    // ======================================
+    // WIADOMOŚĆ SERWERA -> WIADOMOŚĆ REACT
+    // ======================================
 
     function convertMessage(
       message: ServerMessage
@@ -647,6 +796,7 @@ function App() {
       return {
         id: message.id,
         roomId: message.roomId,
+        clientId: message.clientId,
         author: message.author,
         time: formatMessageTime(message.time),
         text: message.text,
@@ -654,6 +804,10 @@ function App() {
         editedAt: message.editedAt ?? null,
       };
     }
+
+    // ======================================
+    // PODGLĄD OSTATNIEJ WIADOMOŚCI
+    // ======================================
 
     function updateRoomPreview(
       latest: ServerMessage | null
@@ -664,16 +818,20 @@ function App() {
             ? {
                 ...room,
                 lastMessage:
-                  latest?.text ?? "Brak wiadomości",
-                lastTime:
-                  latest
-                    ? formatMessageTime(latest.time)
-                    : "—",
+                  latest?.text ??
+                  "Brak wiadomości",
+                lastTime: latest
+                  ? formatMessageTime(latest.time)
+                  : "—",
               }
             : room
         )
       );
     }
+
+    // ======================================
+    // AKTUALIZACJA POKOJU
+    // ======================================
 
     function upsertRoom(incoming: ServerRoom) {
       setRooms((previous) => {
@@ -697,7 +855,7 @@ function App() {
     }
 
     // ======================================
-    // CZYSZCZENIE TIMERÓW
+    // TIMERY
     // ======================================
 
     function clearConnectionTimers() {
@@ -725,11 +883,16 @@ function App() {
     }
 
     // ======================================
-    // PONAWIANIE POŁĄCZENIA
+    // AUTOMATYCZNE PONAWIANIE
     // ======================================
 
     function scheduleReconnect() {
-      if (disposed || reconnectTimer !== undefined) return;
+      if (
+        disposed ||
+        reconnectTimer !== undefined
+      ) {
+        return;
+      }
 
       reconnectTimer = window.setTimeout(() => {
         reconnectTimer = undefined;
@@ -743,8 +906,15 @@ function App() {
 
     function sendPing(socket: WebSocket) {
       if (disposed || document.hidden) return;
+
       if (currentSocket !== socket) return;
-      if (socket.readyState !== WebSocket.OPEN) return;
+
+      if (
+        socket.readyState !== WebSocket.OPEN
+      ) {
+        return;
+      }
+
       if (pongTimer !== undefined) return;
 
       try {
@@ -762,6 +932,10 @@ function App() {
             currentSocket === socket &&
             socket.readyState === WebSocket.OPEN
           ) {
+            console.warn(
+              "[SoCalled] Heartbeat timeout"
+            );
+
             socket.close(
               4000,
               "Heartbeat timeout"
@@ -769,7 +943,11 @@ function App() {
           }
         }, HEARTBEAT_TIMEOUT);
       } catch (error) {
-        console.error("[SoCalled] Heartbeat:", error);
+        console.error(
+          "[SoCalled] Heartbeat:",
+          error
+        );
+
         socket.close();
       }
     }
@@ -784,8 +962,10 @@ function App() {
       if (
         currentSocket &&
         (
-          currentSocket.readyState === WebSocket.OPEN ||
-          currentSocket.readyState === WebSocket.CONNECTING
+          currentSocket.readyState ===
+            WebSocket.OPEN ||
+          currentSocket.readyState ===
+            WebSocket.CONNECTING
         )
       ) {
         return;
@@ -801,7 +981,11 @@ function App() {
       try {
         socket = new WebSocket(url);
       } catch (error) {
-        console.error("[SoCalled] WebSocket:", error);
+        console.error(
+          "[SoCalled] WebSocket:",
+          error
+        );
+
         setSocketStatus("offline");
         scheduleReconnect();
         return;
@@ -814,7 +998,8 @@ function App() {
         if (
           !disposed &&
           currentSocket === socket &&
-          socket.readyState === WebSocket.CONNECTING
+          socket.readyState ===
+            WebSocket.CONNECTING
         ) {
           socket.close();
         }
@@ -825,7 +1010,12 @@ function App() {
       // ====================================
 
       socket.onopen = () => {
-        if (disposed || currentSocket !== socket) return;
+        if (
+          disposed ||
+          currentSocket !== socket
+        ) {
+          return;
+        }
 
         if (connectTimer !== undefined) {
           window.clearTimeout(connectTimer);
@@ -841,9 +1031,10 @@ function App() {
 
         sendPing(socket);
 
-        heartbeatTimer = window.setInterval(() => {
-          sendPing(socket);
-        }, HEARTBEAT_INTERVAL);
+        heartbeatTimer = window.setInterval(
+          () => sendPing(socket),
+          HEARTBEAT_INTERVAL
+        );
       };
 
       // ====================================
@@ -851,29 +1042,39 @@ function App() {
       // ====================================
 
       socket.onmessage = (event) => {
-        if (disposed || currentSocket !== socket) return;
+        if (
+          disposed ||
+          currentSocket !== socket
+        ) {
+          return;
+        }
 
         try {
           const data = JSON.parse(event.data);
 
+          // =================================
           // HEARTBEAT
+          // =================================
+
           if (data.type === "pong") {
             if (pongTimer !== undefined) {
               window.clearTimeout(pongTimer);
               pongTimer = undefined;
             }
+
             return;
           }
 
           // =================================
-          // LISTA POKOJÓW Z SERWERA
+          // SNAPSHOT POKOJÓW
           // =================================
 
           if (
             data.type === "rooms_snapshot" &&
             Array.isArray(data.rooms)
           ) {
-            const incoming = data.rooms as ServerRoom[];
+            const incoming =
+              data.rooms as ServerRoom[];
 
             setRooms((previous) =>
               incoming.map((item) => {
@@ -881,7 +1082,10 @@ function App() {
                   (room) => room.id === item.id
                 );
 
-                return mergeRoom(item, existing);
+                return mergeRoom(
+                  item,
+                  existing
+                );
               })
             );
 
@@ -896,16 +1100,15 @@ function App() {
             data.type === "room_created" &&
             data.room
           ) {
-            const incoming = data.room as ServerRoom;
+            const incoming =
+              data.room as ServerRoom;
 
             upsertRoom(incoming);
 
-            // Tylko osoba, która wysłała
-            // to konkretne żądanie, przechodzi
-            // automatycznie do nowego pokoju.
             if (
               data.requestId &&
-              data.requestId === createRequestRef.current &&
+              data.requestId ===
+                createRequestRef.current &&
               data.createdBy === clientId
             ) {
               createRequestRef.current = null;
@@ -935,22 +1138,107 @@ function App() {
             data.type === "room_updated" &&
             data.room
           ) {
-            const updated = data.room as ServerRoom;
+            const updated =
+              data.room as ServerRoom;
 
             upsertRoom(updated);
 
             if (
               data.requestId &&
-              data.requestId === saveRequestRef.current &&
+              data.requestId ===
+                saveRequestRef.current &&
               data.updatedBy === clientId
             ) {
               saveRequestRef.current = null;
+
               setRoomSaving(false);
               setRoomError("");
+
               setRoomSuccess(
-                "Zmiany zapisane i wysłane do uczestników."
+                "Zmiany zapisane i zsynchronizowane."
               );
             }
+
+            return;
+          }
+
+          // =================================
+          // UCZESTNICY I STATUSY
+          // =================================
+
+          if (
+            data.type === "room_presence" &&
+            typeof data.roomId === "string" &&
+            Array.isArray(data.members)
+          ) {
+            const roomId =
+              data.roomId as string;
+
+            const members =
+              data.members as RoomMember[];
+
+            setMembersByRoom((previous) => ({
+              ...previous,
+              [roomId]: members,
+            }));
+
+            setRooms((previous) =>
+              previous.map((room) =>
+                room.id === roomId
+                  ? {
+                      ...room,
+                      memberCount:
+                        Number(data.memberCount) || 0,
+                      onlineCount:
+                        Number(data.onlineCount) || 0,
+                    }
+                  : room
+              )
+            );
+
+            // Potwierdzenie zmiany nicku lub roli
+            if (
+              data.requestId &&
+              data.requestId ===
+                memberRequestRef.current &&
+              data.updatedBy === clientId
+            ) {
+              memberRequestRef.current = null;
+
+              setMemberSaving(false);
+              setEditingMemberId(null);
+              setMemberError("");
+
+              setMemberSuccess(
+                "Zmiana została zapisana."
+              );
+            }
+
+            return;
+          }
+
+          // =================================
+          // ZMIANA NICKU AUTORA WIADOMOŚCI
+          // =================================
+
+          if (
+            data.type ===
+              "message_author_changed" &&
+            typeof data.roomId === "string" &&
+            typeof data.clientId === "string" &&
+            typeof data.author === "string"
+          ) {
+            setMessages((previous) =>
+              previous.map((message) =>
+                message.roomId === data.roomId &&
+                message.clientId === data.clientId
+                  ? {
+                      ...message,
+                      author: data.author,
+                    }
+                  : message
+              )
+            );
 
             return;
           }
@@ -969,16 +1257,19 @@ function App() {
 
             setMessages((previous) => [
               ...previous.filter(
-                (message) => message.roomId !== activeRoomId
+                (message) =>
+                  message.roomId !== activeRoomId
               ),
               ...history,
             ]);
 
             const latest =
               data.messages.length > 0
-                ? (data.messages[
-                    data.messages.length - 1
-                  ] as ServerMessage)
+                ? (
+                    data.messages[
+                      data.messages.length - 1
+                    ] as ServerMessage
+                  )
                 : null;
 
             updateRoomPreview(latest);
@@ -996,7 +1287,8 @@ function App() {
             const serverMessage =
               data.message as ServerMessage;
 
-            const message = convertMessage(serverMessage);
+            const message =
+              convertMessage(serverMessage);
 
             setMessages((previous) => {
               if (
@@ -1007,7 +1299,10 @@ function App() {
                 return previous;
               }
 
-              return [...previous, message];
+              return [
+                ...previous,
+                message,
+              ];
             });
 
             updateRoomPreview(serverMessage);
@@ -1035,20 +1330,27 @@ function App() {
             );
 
             updateRoomPreview(
-              (data.lastMessage as ServerMessage | null) ??
-                null
+              (
+                data.lastMessage as
+                  ServerMessage | null
+              ) ?? null
             );
 
             setEditingId((current) =>
-              current === updated.id ? null : current
+              current === updated.id
+                ? null
+                : current
             );
 
             setPendingEditId((current) =>
-              current === updated.id ? null : current
+              current === updated.id
+                ? null
+                : current
             );
 
             setActionMenuId(null);
             setActionError("");
+
             return;
           }
 
@@ -1060,29 +1362,38 @@ function App() {
             data.type === "message_deleted" &&
             typeof data.messageId === "string"
           ) {
-            const removedId = data.messageId as string;
+            const removedId =
+              data.messageId as string;
 
             setMessages((previous) =>
               previous.filter(
-                (message) => message.id !== removedId
+                (message) =>
+                  message.id !== removedId
               )
             );
 
             updateRoomPreview(
-              (data.lastMessage as ServerMessage | null) ??
-                null
+              (
+                data.lastMessage as
+                  ServerMessage | null
+              ) ?? null
             );
 
             setEditingId((current) =>
-              current === removedId ? null : current
+              current === removedId
+                ? null
+                : current
             );
 
             setPendingEditId((current) =>
-              current === removedId ? null : current
+              current === removedId
+                ? null
+                : current
             );
 
             setActionMenuId(null);
             setActionError("");
+
             return;
           }
 
@@ -1096,25 +1407,36 @@ function App() {
                 ? data.message
                 : "Nie udało się wykonać operacji.";
 
-            console.warn("[SoCalled]", message);
+            console.warn(
+              "[SoCalled]",
+              message
+            );
 
             if (createRequestRef.current) {
               createRequestRef.current = null;
               setCreateBusy(false);
               setCreateError(message);
+
             } else if (saveRequestRef.current) {
               saveRequestRef.current = null;
               setRoomSaving(false);
               setRoomError(message);
+
+            } else if (memberRequestRef.current) {
+              memberRequestRef.current = null;
+              setMemberSaving(false);
+              setMemberError(message);
+
             } else {
               setActionError(message);
             }
 
             setPendingEditId(null);
           }
+
         } catch (error) {
           console.error(
-            "[SoCalled] Błąd przetwarzania:",
+            "[SoCalled] Błąd zdarzenia:",
             error
           );
         }
@@ -1125,7 +1447,12 @@ function App() {
       // ====================================
 
       socket.onclose = (event) => {
-        if (disposed || currentSocket !== socket) return;
+        if (
+          disposed ||
+          currentSocket !== socket
+        ) {
+          return;
+        }
 
         clearConnectionTimers();
 
@@ -1136,12 +1463,15 @@ function App() {
         }
 
         setSocketStatus("offline");
+
         setPendingEditId(null);
         setCreateBusy(false);
         setRoomSaving(false);
+        setMemberSaving(false);
 
         createRequestRef.current = null;
         saveRequestRef.current = null;
+        memberRequestRef.current = null;
 
         console.warn(
           "[SoCalled] Rozłączono:",
@@ -1153,10 +1483,15 @@ function App() {
       };
 
       socket.onerror = () => {
-        if (disposed || currentSocket !== socket) return;
+        if (
+          disposed ||
+          currentSocket !== socket
+        ) {
+          return;
+        }
 
         console.warn(
-          "[SoCalled] Problem z WebSocket:",
+          "[SoCalled] Błąd połączenia:",
           url
         );
       };
@@ -1167,7 +1502,12 @@ function App() {
     // ======================================
 
     function checkConnection() {
-      if (disposed || document.hidden) return;
+      if (
+        disposed ||
+        document.hidden
+      ) {
+        return;
+      }
 
       const socket = currentSocket;
 
@@ -1177,12 +1517,17 @@ function App() {
         return;
       }
 
-      if (socket.readyState === WebSocket.OPEN) {
+      if (
+        socket.readyState === WebSocket.OPEN
+      ) {
         sendPing(socket);
         return;
       }
 
-      if (socket.readyState === WebSocket.CONNECTING) {
+      if (
+        socket.readyState ===
+        WebSocket.CONNECTING
+      ) {
         return;
       }
 
@@ -1207,9 +1552,20 @@ function App() {
       handleVisibilityChange
     );
 
-    window.addEventListener("focus", checkConnection);
-    window.addEventListener("pageshow", checkConnection);
-    window.addEventListener("online", checkConnection);
+    window.addEventListener(
+      "focus",
+      checkConnection
+    );
+
+    window.addEventListener(
+      "pageshow",
+      checkConnection
+    );
+
+    window.addEventListener(
+      "online",
+      checkConnection
+    );
 
     connect();
 
@@ -1221,9 +1577,20 @@ function App() {
         handleVisibilityChange
       );
 
-      window.removeEventListener("focus", checkConnection);
-      window.removeEventListener("pageshow", checkConnection);
-      window.removeEventListener("online", checkConnection);
+      window.removeEventListener(
+        "focus",
+        checkConnection
+      );
+
+      window.removeEventListener(
+        "pageshow",
+        checkConnection
+      );
+
+      window.removeEventListener(
+        "online",
+        checkConnection
+      );
 
       clearReconnectTimer();
       clearConnectionTimers();
@@ -1242,7 +1609,7 @@ function App() {
   ]);
 
   // ========================================
-  // PRZEWIJANIE CZATU
+  // AUTOMATYCZNE PRZEWIJANIE
   // ========================================
 
   useEffect(() => {
@@ -1250,7 +1617,11 @@ function App() {
       chatScrollRef.current.scrollTop =
         chatScrollRef.current.scrollHeight;
     }
-  }, [activeRoomId, messages, mobileScreen]);
+  }, [
+    activeRoomId,
+    messages,
+    mobileScreen,
+  ]);
 
   // ========================================
   // WYBÓR POKOJU
@@ -1260,6 +1631,7 @@ function App() {
     setMobileScreen("chat");
     setDetailsTab("about");
     setDraft("");
+
     setActionMenuId(null);
     setEditingId(null);
     setPendingEditId(null);
@@ -1268,7 +1640,10 @@ function App() {
     setRooms((previous) =>
       previous.map((room) =>
         room.id === roomId
-          ? { ...room, unread: 0 }
+          ? {
+              ...room,
+              unread: 0,
+            }
           : room
       )
     );
@@ -1281,7 +1656,8 @@ function App() {
 
     if (
       socketStatus !== "online" ||
-      socketRef.current?.readyState !== WebSocket.OPEN
+      socketRef.current?.readyState !==
+        WebSocket.OPEN
     ) {
       reconnectNow();
     }
@@ -1291,7 +1667,9 @@ function App() {
   // WYSYŁANIE WIADOMOŚCI
   // ========================================
 
-  function sendMessage(event: FormEvent<HTMLFormElement>) {
+  function sendMessage(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
 
     const text = draft.trim();
@@ -1318,24 +1696,34 @@ function App() {
 
       setDraft("");
     } catch (error) {
-      console.error("[SoCalled] Wysyłanie:", error);
+      console.error(
+        "[SoCalled] Wysyłanie:",
+        error
+      );
+
       reconnectNow();
     }
   }
 
   // ========================================
-  // EDYCJA I USUWANIE WIADOMOŚCI
+  // EDYCJA WIADOMOŚCI
   // ========================================
 
-  function toggleMessageMenu(messageId: string) {
+  function toggleMessageMenu(
+    messageId: string
+  ) {
     setActionMenuId((current) =>
-      current === messageId ? null : messageId
+      current === messageId
+        ? null
+        : messageId
     );
 
     setActionError("");
   }
 
-  function startMessageEdit(message: ChatMessage) {
+  function startMessageEdit(
+    message: ChatMessage
+  ) {
     if (!message.mine) return;
 
     setEditingId(message.id);
@@ -1357,7 +1745,12 @@ function App() {
   ) {
     event.preventDefault();
 
-    if (!editingId || pendingEditId) return;
+    if (
+      !editingId ||
+      pendingEditId
+    ) {
+      return;
+    }
 
     const text = editingText.trim();
     const socket = socketRef.current;
@@ -1370,10 +1763,16 @@ function App() {
     }
 
     const original = messages.find(
-      (message) => message.id === editingId
+      (message) =>
+        message.id === editingId
     );
 
-    if (!original || !original.mine) return;
+    if (
+      !original ||
+      !original.mine
+    ) {
+      return;
+    }
 
     if (original.text === text) {
       cancelMessageEdit();
@@ -1385,7 +1784,9 @@ function App() {
       socket.readyState !== WebSocket.OPEN ||
       socketStatus !== "online"
     ) {
-      setActionError("Brak połączenia z serwerem.");
+      setActionError(
+        "Brak połączenia z serwerem."
+      );
       reconnectNow();
       return;
     }
@@ -1402,17 +1803,29 @@ function App() {
     setActionError("");
   }
 
-  function deleteMessage(message: ChatMessage) {
-    if (!message.mine) return;
+  // ========================================
+  // USUWANIE I MODERACJA WIADOMOŚCI
+  // ========================================
+
+  function deleteMessage(
+    message: ChatMessage
+  ) {
+    if (
+      !message.mine &&
+      !canModerateMessages
+    ) {
+      return;
+    }
 
     setActionMenuId(null);
 
-    const confirmed = window.confirm(
-      "Czy na pewno chcesz usunąć tę wiadomość?\n" +
-      "Zniknie również u pozostałych uczestników."
-    );
+    const prompt = message.mine
+      ? "Czy na pewno chcesz usunąć tę wiadomość?"
+      : "Czy jako moderator chcesz usunąć tę wiadomość innego uczestnika?";
 
-    if (!confirmed) return;
+    if (!window.confirm(prompt)) {
+      return;
+    }
 
     const socket = socketRef.current;
 
@@ -1421,7 +1834,9 @@ function App() {
       socket.readyState !== WebSocket.OPEN ||
       socketStatus !== "online"
     ) {
-      setActionError("Brak połączenia z serwerem.");
+      setActionError(
+        "Brak połączenia z serwerem."
+      );
       reconnectNow();
       return;
     }
@@ -1435,10 +1850,12 @@ function App() {
   }
 
   // ========================================
-  // TWORZENIE POKOJU NA SERWERZE
+  // TWORZENIE POKOJU
   // ========================================
 
-  function createRoom(event: FormEvent<HTMLFormElement>) {
+  function createRoom(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
 
     const name = newRoomName.trim();
@@ -1460,6 +1877,7 @@ function App() {
     const requestId = makeRequestId();
 
     createRequestRef.current = requestId;
+
     setCreateBusy(true);
     setCreateError("");
 
@@ -1473,15 +1891,22 @@ function App() {
         })
       );
     } catch (error) {
-      console.error("[SoCalled] Tworzenie pokoju:", error);
+      console.error(
+        "[SoCalled] Tworzenie pokoju:",
+        error
+      );
+
       createRequestRef.current = null;
       setCreateBusy(false);
-      setCreateError("Nie udało się utworzyć pokoju.");
+
+      setCreateError(
+        "Nie udało się utworzyć pokoju."
+      );
     }
   }
 
   // ========================================
-  // WCZYTYWANIE ZDJĘCIA POKOJU
+  // ZDJĘCIE POKOJU
   // ========================================
 
   async function handleRoomImage(
@@ -1491,14 +1916,21 @@ function App() {
 
     event.target.value = "";
 
-    if (!file || !canEditRoom) return;
+    if (
+      !file ||
+      !canEditRoom
+    ) {
+      return;
+    }
 
     setImageBusy(true);
     setRoomError("");
     setRoomSuccess("");
 
     try {
-      const imageData = await prepareRoomImage(file);
+      const imageData =
+        await prepareRoomImage(file);
+
       setRoomImage(imageData);
     } catch (error) {
       setRoomError(
@@ -1512,7 +1944,7 @@ function App() {
   }
 
   // ========================================
-  // ZAPIS PERSONALIZACJI POKOJU
+  // ZAPIS USTAWIEŃ POKOJU
   // ========================================
 
   function saveRoomSettings(
@@ -1520,7 +1952,13 @@ function App() {
   ) {
     event.preventDefault();
 
-    if (!canEditRoom || roomSaving || imageBusy) return;
+    if (
+      !canEditRoom ||
+      roomSaving ||
+      imageBusy
+    ) {
+      return;
+    }
 
     const name = roomName.trim();
 
@@ -1538,13 +1976,15 @@ function App() {
       socket.readyState !== WebSocket.OPEN ||
       socketStatus !== "online"
     ) {
-      setRoomError("Brak połączenia z serwerem.");
+      setRoomError(
+        "Brak połączenia z serwerem."
+      );
+
       reconnectNow();
       return;
     }
 
     const requestId = makeRequestId();
-
     saveRequestRef.current = requestId;
 
     setRoomSaving(true);
@@ -1572,7 +2012,211 @@ function App() {
 
       saveRequestRef.current = null;
       setRoomSaving(false);
-      setRoomError("Nie udało się zapisać zmian.");
+
+      setRoomError(
+        "Nie udało się zapisać zmian."
+      );
+    }
+  }
+
+  // ========================================
+  // OTWIERANIE EDYTORA NICKU
+  // ========================================
+
+  function startMemberEdit(
+    member: RoomMember
+  ) {
+    const allowed =
+      member.clientId === clientId ||
+      isRoomOwner;
+
+    if (!allowed) return;
+
+    setEditingMemberId(member.clientId);
+    setMemberNickname(
+      member.nickname ?? ""
+    );
+
+    setMemberError("");
+    setMemberSuccess("");
+  }
+
+  // ========================================
+  // ANULOWANIE EDYCJI NICKU
+  // ========================================
+
+  function cancelMemberEdit() {
+    if (memberSaving) return;
+
+    setEditingMemberId(null);
+    setMemberNickname("");
+    setMemberError("");
+  }
+
+  // ========================================
+  // ZAPIS NICKU UCZESTNIKA
+  // ========================================
+
+  function saveMemberNickname(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (
+      !editingMemberId ||
+      memberSaving
+    ) {
+      return;
+    }
+
+    const nicknameValue =
+      memberNickname.trim();
+
+    if (nicknameValue.length > 32) {
+      setMemberError(
+        "Nick może mieć maksymalnie 32 znaki."
+      );
+      return;
+    }
+
+    const member = activeMembers.find(
+      (item) =>
+        item.clientId === editingMemberId
+    );
+
+    if (!member) {
+      setMemberError(
+        "Nie znaleziono uczestnika."
+      );
+      return;
+    }
+
+    if (
+      member.clientId !== clientId &&
+      !isRoomOwner
+    ) {
+      setMemberError(
+        "Nie masz uprawnień do tej zmiany."
+      );
+      return;
+    }
+
+    if (
+      (member.nickname ?? "") ===
+      nicknameValue
+    ) {
+      cancelMemberEdit();
+      return;
+    }
+
+    const socket = socketRef.current;
+
+    if (
+      !socket ||
+      socket.readyState !== WebSocket.OPEN ||
+      socketStatus !== "online"
+    ) {
+      setMemberError(
+        "Brak połączenia z serwerem."
+      );
+      reconnectNow();
+      return;
+    }
+
+    const requestId = makeRequestId();
+
+    memberRequestRef.current = requestId;
+    setMemberSaving(true);
+    setMemberError("");
+    setMemberSuccess("");
+
+    try {
+      socket.send(
+        JSON.stringify({
+          type: "set_room_nickname",
+          requestId,
+          targetId: editingMemberId,
+          nickname: nicknameValue,
+        })
+      );
+    } catch (error) {
+      console.error(
+        "[SoCalled] Zmiana nicku:",
+        error
+      );
+
+      memberRequestRef.current = null;
+      setMemberSaving(false);
+
+      setMemberError(
+        "Nie udało się zapisać nicku."
+      );
+    }
+  }
+
+  // ========================================
+  // NADAWANIE I ODBIERANIE MODERATORA
+  // ========================================
+
+  function changeMemberRole(
+    member: RoomMember
+  ) {
+    if (
+      !isRoomOwner ||
+      member.role === "owner" ||
+      memberSaving
+    ) {
+      return;
+    }
+
+    const nextRole: MemberRole =
+      member.role === "moderator"
+        ? "member"
+        : "moderator";
+
+    const socket = socketRef.current;
+
+    if (
+      !socket ||
+      socket.readyState !== WebSocket.OPEN ||
+      socketStatus !== "online"
+    ) {
+      setMemberError(
+        "Brak połączenia z serwerem."
+      );
+      reconnectNow();
+      return;
+    }
+
+    const requestId = makeRequestId();
+
+    memberRequestRef.current = requestId;
+
+    setMemberSaving(true);
+    setMemberError("");
+    setMemberSuccess("");
+
+    try {
+      socket.send(
+        JSON.stringify({
+          type: "set_member_role",
+          requestId,
+          targetId: member.clientId,
+          role: nextRole,
+        })
+      );
+    } catch (error) {
+      console.error(
+        "[SoCalled] Zmiana roli:",
+        error
+      );
+
+      memberRequestRef.current = null;
+      setMemberSaving(false);
+
+      setMemberError(
+        "Nie udało się zmienić roli."
+      );
     }
   }
 
@@ -1596,7 +2240,9 @@ function App() {
 
       <aside className="desktop-sidebar">
         <div className="sidebar-brand">
-          <div className="brand-symbol">SO</div>
+          <div className="brand-symbol">
+            SO
+          </div>
 
           <div>
             <div className="brand-name">
@@ -1614,6 +2260,7 @@ function App() {
             <span className="eyebrow">
               TWOJA PRZESTRZEŃ
             </span>
+
             <h2>Pokoje</h2>
           </div>
 
@@ -1637,19 +2284,21 @@ function App() {
           <div className="hex-grid">
             {rooms.map((room) => (
               <div
+                key={room.id}
                 className={`hex-slot ${
                   activeRoomId === room.id
                     ? "hex-slot--active"
                     : ""
                 }`}
-                key={room.id}
               >
                 <button
                   className="hex-button"
                   type="button"
                   onClick={() => openRoom(room.id)}
                   aria-label={`Otwórz pokój ${room.name}`}
-                  aria-pressed={activeRoomId === room.id}
+                  aria-pressed={
+                    activeRoomId === room.id
+                  }
                 >
                   <span className="hex-inside">
                     <RoomVisual room={room} />
@@ -1685,12 +2334,19 @@ function App() {
 
           <div className="account-card">
             <div className="account-avatar">
-              {nickname.slice(0, 1).toUpperCase()}
+              {nickname
+                .slice(0, 1)
+                .toUpperCase()}
             </div>
 
             <div className="account-copy">
-              <strong>{nickname}</strong>
-              <span>Tryb demonstracyjny</span>
+              <strong>
+                {nickname}
+              </strong>
+
+              <span>
+                {roleLabel(myRole)} w pokoju
+              </span>
             </div>
 
             <Sparkles
@@ -1708,7 +2364,9 @@ function App() {
       <section className="mobile-room-screen">
         <header className="mobile-home-header">
           <div className="mobile-brand">
-            <div className="brand-symbol">SO</div>
+            <div className="brand-symbol">
+              SO
+            </div>
 
             <div className="brand-name">
               So<span>Called</span>
@@ -1735,11 +2393,14 @@ function App() {
 
           <h1>
             Twoje pokoje
-            <span className="accent-dot">.</span>
+            <span className="accent-dot">
+              .
+            </span>
           </h1>
 
           <p>
-            Znajdź swoją społeczność i zacznij rozmawiać.
+            Znajdź swoją społeczność
+            i zacznij rozmawiać.
           </p>
         </div>
 
@@ -1757,15 +2418,20 @@ function App() {
         </label>
 
         <div className="mobile-list-heading">
-          <span>WSZYSTKIE POKOJE</span>
-          <span>{filteredRooms.length}</span>
+          <span>
+            WSZYSTKIE POKOJE
+          </span>
+
+          <span>
+            {filteredRooms.length}
+          </span>
         </div>
 
         <div className="mobile-room-list">
           {filteredRooms.map((room) => (
             <button
-              className="mobile-room-item"
               key={room.id}
+              className="mobile-room-item"
               type="button"
               onClick={() => openRoom(room.id)}
             >
@@ -1775,8 +2441,13 @@ function App() {
 
               <div className="mobile-room-copy">
                 <div className="mobile-room-line">
-                  <strong>{room.name}</strong>
-                  <time>{room.lastTime}</time>
+                  <strong>
+                    {room.name}
+                  </strong>
+
+                  <time>
+                    {room.lastTime}
+                  </time>
                 </div>
 
                 <div className="mobile-room-line">
@@ -1840,7 +2511,9 @@ function App() {
           <button
             type="button"
             className="icon-button mobile-only"
-            onClick={() => setMobileScreen("rooms")}
+            onClick={() =>
+              setMobileScreen("rooms")
+            }
             aria-label="Powrót do pokojów"
           >
             <ArrowLeft size={22} />
@@ -1851,8 +2524,13 @@ function App() {
           </div>
 
           <div className="chat-header-copy">
-            <h1>{activeRoom.name}</h1>
-            <span>{activeRoom.topic}</span>
+            <h1>
+              {activeRoom.name}
+            </h1>
+
+            <span>
+              {activeRoom.topic}
+            </span>
           </div>
 
           <div className="chat-header-actions">
@@ -1902,10 +2580,13 @@ function App() {
           </div>
         </header>
 
-        {/* STATUS POŁĄCZENIA */}
+        {/* STATUS WEBSOCKET */}
 
         {socketStatus !== "online" && (
-          <div className="connection-warning" role="status">
+          <div
+            className="connection-warning"
+            role="status"
+          >
             <WifiOff size={16} />
 
             <span>
@@ -1935,15 +2616,24 @@ function App() {
               <RoomVisual room={activeRoom} />
             </div>
 
-            <span className="eyebrow">POKÓJ SOCALLED</span>
+            <span className="eyebrow">
+              POKÓJ SOCALLED
+            </span>
 
-            <h2>Witaj w {activeRoom.name}.</h2>
-            <p>{activeRoom.description}</p>
+            <h2>
+              Witaj w {activeRoom.name}.
+            </h2>
+
+            <p>
+              {activeRoom.description}
+            </p>
           </div>
 
           <div className="date-divider">
             <span />
-            <p>Historia rozmowy</p>
+            <p>
+              Historia rozmowy
+            </p>
             <span />
           </div>
 
@@ -1951,141 +2641,185 @@ function App() {
             {roomMessages.length === 0 ? (
               <div className="empty-messages">
                 <MessageCircle size={29} />
-                <h3>Jeszcze tu cicho.</h3>
+
+                <h3>
+                  Jeszcze tu cicho.
+                </h3>
+
                 <p>
-                  Napisz pierwszą wiadomość w tym pokoju.
+                  Napisz pierwszą wiadomość
+                  w tym pokoju.
                 </p>
               </div>
             ) : (
-              roomMessages.map((message) => (
-                <article
-                  key={message.id}
-                  className={`message-row ${
-                    message.mine
-                      ? "message-row--mine"
-                      : ""
-                  }`}
-                >
-                  {!message.mine && (
-                    <div className="message-avatar">
-                      {message.author
-                        .slice(0, 1)
-                        .toUpperCase()}
-                    </div>
-                  )}
+              roomMessages.map((message) => {
+                const canDelete =
+                  message.mine ||
+                  canModerateMessages;
 
-                  <div className="message-body">
-                    <div className="message-meta">
-                      <strong>{message.author}</strong>
-                      <time>{message.time}</time>
-
-                      {message.editedAt && (
-                        <span className="message-edited">
-                          · edytowano
-                        </span>
-                      )}
-
-                      {message.mine && (
-                        <div className="message-actions">
-                          <button
-                            type="button"
-                            className="message-actions-trigger"
-                            aria-label="Opcje wiadomości"
-                            aria-expanded={
-                              actionMenuId === message.id
-                            }
-                            onClick={() =>
-                              toggleMessageMenu(message.id)
-                            }
-                          >
-                            <MoreHorizontal size={19} />
-                          </button>
-
-                          {actionMenuId === message.id && (
-                            <div className="message-actions-menu">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  startMessageEdit(message)
-                                }
-                              >
-                                <Pencil size={16} />
-                                Edytuj
-                              </button>
-
-                              <button
-                                type="button"
-                                className="delete-action"
-                                onClick={() =>
-                                  deleteMessage(message)
-                                }
-                              >
-                                <Trash2 size={16} />
-                                Usuń
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {editingId === message.id ? (
-                      <form
-                        className="message-edit-form"
-                        onSubmit={saveMessageEdit}
-                      >
-                        <textarea
-                          value={editingText}
-                          onChange={(event) =>
-                            setEditingText(event.target.value)
-                          }
-                          maxLength={2000}
-                          rows={3}
-                          aria-label="Edytuj wiadomość"
-                          autoFocus
-                          disabled={
-                            pendingEditId === message.id
-                          }
-                        />
-
-                        <div className="message-edit-controls">
-                          <button
-                            type="button"
-                            className="edit-cancel"
-                            onClick={cancelMessageEdit}
-                            disabled={
-                              pendingEditId === message.id
-                            }
-                          >
-                            <X size={15} />
-                            Anuluj
-                          </button>
-
-                          <button
-                            type="submit"
-                            className="edit-save"
-                            disabled={
-                              !editingText.trim() ||
-                              pendingEditId === message.id ||
-                              socketStatus !== "online"
-                            }
-                          >
-                            <Check size={15} />
-
-                            {pendingEditId === message.id
-                              ? "Zapisywanie..."
-                              : "Zapisz"}
-                          </button>
-                        </div>
-                      </form>
-                    ) : (
-                      <div className="message-bubble">
-                        {message.text}
+                return (
+                  <article
+                    key={message.id}
+                    className={`message-row ${
+                      message.mine
+                        ? "message-row--mine"
+                        : ""
+                    }`}
+                  >
+                    {!message.mine && (
+                      <div className="message-avatar">
+                        {message.author
+                          .slice(0, 1)
+                          .toUpperCase()}
                       </div>
                     )}
-                  </div>
-                </article>
-              ))
+
+                    <div className="message-body">
+                      <div className="message-meta">
+                        <strong>
+                          {message.author}
+                        </strong>
+
+                        <time>
+                          {message.time}
+                        </time>
+
+                        {message.editedAt && (
+                          <span className="message-edited">
+                            · edytowano
+                          </span>
+                        )}
+
+                        {/* MENU WIADOMOŚCI */}
+
+                        {canDelete && (
+                          <div className="message-actions">
+                            <button
+                              type="button"
+                              className="message-actions-trigger"
+                              aria-label="Opcje wiadomości"
+                              aria-expanded={
+                                actionMenuId ===
+                                message.id
+                              }
+                              onClick={() =>
+                                toggleMessageMenu(
+                                  message.id
+                                )
+                              }
+                            >
+                              <MoreHorizontal
+                                size={19}
+                              />
+                            </button>
+
+                            {actionMenuId ===
+                              message.id && (
+                              <div className="message-actions-menu">
+                                {message.mine && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      startMessageEdit(
+                                        message
+                                      )
+                                    }
+                                  >
+                                    <Pencil size={16} />
+                                    Edytuj
+                                  </button>
+                                )}
+
+                                <button
+                                  type="button"
+                                  className="delete-action"
+                                  onClick={() =>
+                                    deleteMessage(
+                                      message
+                                    )
+                                  }
+                                >
+                                  <Trash2 size={16} />
+
+                                  {message.mine
+                                    ? "Usuń"
+                                    : "Usuń (moderacja)"}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* EDYTOR WIADOMOŚCI */}
+
+                      {editingId === message.id ? (
+                        <form
+                          className="message-edit-form"
+                          onSubmit={saveMessageEdit}
+                        >
+                          <textarea
+                            value={editingText}
+                            onChange={(event) =>
+                              setEditingText(
+                                event.target.value
+                              )
+                            }
+                            maxLength={2000}
+                            rows={3}
+                            aria-label="Edytuj wiadomość"
+                            autoFocus
+                            disabled={
+                              pendingEditId ===
+                              message.id
+                            }
+                          />
+
+                          <div className="message-edit-controls">
+                            <button
+                              type="button"
+                              className="edit-cancel"
+                              onClick={
+                                cancelMessageEdit
+                              }
+                              disabled={
+                                pendingEditId ===
+                                message.id
+                              }
+                            >
+                              <X size={15} />
+                              Anuluj
+                            </button>
+
+                            <button
+                              type="submit"
+                              className="edit-save"
+                              disabled={
+                                !editingText.trim() ||
+                                pendingEditId ===
+                                  message.id ||
+                                socketStatus !==
+                                  "online"
+                              }
+                            >
+                              <Check size={15} />
+
+                              {pendingEditId ===
+                                message.id
+                                ? "Zapisywanie..."
+                                : "Zapisz"}
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        <div className="message-bubble">
+                          {message.text}
+                        </div>
+                      )}
+                    </div>
+                  </article>
+                );
+              })
             )}
           </div>
         </div>
@@ -2095,11 +2829,15 @@ function App() {
             className="message-operation-error"
             role="alert"
           >
-            <span>{actionError}</span>
+            <span>
+              {actionError}
+            </span>
 
             <button
               type="button"
-              onClick={() => setActionError("")}
+              onClick={() =>
+                setActionError("")
+              }
               aria-label="Zamknij komunikat"
             >
               <X size={17} />
@@ -2107,7 +2845,7 @@ function App() {
           </div>
         )}
 
-        {/* WYSYŁANIE WIADOMOŚCI */}
+        {/* KOMPOZYTOR WIADOMOŚCI */}
 
         <div className="composer-area">
           <form
@@ -2150,7 +2888,7 @@ function App() {
       </main>
 
       {/* ====================================
-          PRAWY PANEL — INFORMACJE
+          PRAWY PANEL — UCZESTNICY I USTAWIENIA
           ==================================== */}
 
       <aside className="details-panel">
@@ -2159,13 +2897,18 @@ function App() {
             <span className="eyebrow">
               TWOJA SPOŁECZNOŚĆ
             </span>
-            <h2>Informacje</h2>
+
+            <h2>
+              Informacje
+            </h2>
           </div>
 
           <button
             type="button"
             className="icon-button mobile-only"
-            onClick={() => setMobileScreen("chat")}
+            onClick={() =>
+              setMobileScreen("chat")
+            }
             aria-label="Wróć do czatu"
           >
             <X size={22} />
@@ -2173,15 +2916,20 @@ function App() {
         </header>
 
         <div className="details-scroll">
-          {/* ZDJĘCIE I NAZWA POKOJU */}
+          {/* TOŻSAMOŚĆ POKOJU */}
 
           <div className="room-identity">
             <div className="room-identity-icon">
               <RoomVisual room={activeRoom} />
             </div>
 
-            <h3>{activeRoom.name}</h3>
-            <p>{activeRoom.topic}</p>
+            <h3>
+              {activeRoom.name}
+            </h3>
+
+            <p>
+              {activeRoom.topic}
+            </p>
 
             <span className="room-type-pill">
               {activeRoom.isPrivate ? (
@@ -2196,6 +2944,8 @@ function App() {
             </span>
           </div>
 
+          {/* ZAKŁADKI */}
+
           <div className="details-tabs">
             <button
               type="button"
@@ -2204,7 +2954,9 @@ function App() {
                   ? "tab-active"
                   : ""
               }
-              onClick={() => setDetailsTab("about")}
+              onClick={() =>
+                setDetailsTab("about")
+              }
             >
               O pokoju
             </button>
@@ -2216,99 +2968,312 @@ function App() {
                   ? "tab-active"
                   : ""
               }
-              onClick={() => setDetailsTab("settings")}
+              onClick={() =>
+                setDetailsTab("settings")
+              }
             >
               Ustawienia
             </button>
           </div>
 
           {/* ==================================
-              O POKOJU
+              O POKOJU + UCZESTNICY
               ================================== */}
 
           {detailsTab === "about" ? (
             <div className="details-content">
               <div className="details-section">
-                <h4>OPIS POKOJU</h4>
-                <p>{activeRoom.description}</p>
+                <h4>
+                  OPIS POKOJU
+                </h4>
+
+                <p>
+                  {activeRoom.description}
+                </p>
               </div>
+
+              {/* PRAWDZIWE STATYSTYKI */}
 
               <div className="room-stats">
                 <div>
                   <Users size={19} />
-                  <strong>{activeRoom.members}</strong>
-                  <span>Członków (demo)</span>
+
+                  <strong>
+                    {activeRoom.memberCount}
+                  </strong>
+
+                  <span>
+                    Uczestników
+                  </span>
                 </div>
 
                 <div>
                   <span className="status-dot" />
-                  <strong>{activeRoom.online}</strong>
-                  <span>Online (demo)</span>
+
+                  <strong>
+                    {activeRoom.onlineCount}
+                  </strong>
+
+                  <span>
+                    Online
+                  </span>
                 </div>
               </div>
 
+              {/* TWOJA ROLA */}
+
               <div className="details-section">
-                <h4>WŁASNOŚĆ POKOJU</h4>
+                <h4>
+                  TWOJA ROLA
+                </h4>
+
+                <div className="socalled-my-role">
+                  <RoleIcon role={myRole} />
+
+                  <strong>
+                    {roleLabel(myRole)}
+                  </strong>
+                </div>
 
                 <p>
-                  {activeRoom.ownerId === clientId
-                    ? "Jesteś właścicielem tego pokoju."
-                    : activeRoom.ownerId === null
-                      ? "Pokój demonstracyjny. Pierwsza osoba, która zapisze ustawienia, przejmie rolę właściciela."
-                      : "Ten pokój należy do innego użytkownika."}
+                  {myRole === "owner"
+                    ? "Zarządzasz pokojem, moderatorami i nickami uczestników."
+                    : myRole === "moderator"
+                      ? "Możesz moderować wiadomości oraz zmieniać swój nick."
+                      : "Możesz wysyłać wiadomości i ustawić swój nick w tym pokoju."}
                 </p>
               </div>
 
+              {/* LISTA UCZESTNIKÓW */}
+
               <div className="details-section">
                 <div className="section-heading-row">
-                  <h4>PRZYKŁADOWI UCZESTNICY</h4>
+                  <h4>
+                    UCZESTNICY POKOJU
+                  </h4>
                 </div>
 
-                {[
-                  nickname,
-                  "Maja",
-                  "Kuba",
-                  "Ola",
-                ].map((name, index) => (
-                  <div
-                    className="member-row"
-                    key={`${index}-${name}`}
-                  >
-                    <div
-                      className={`member-avatar member-avatar-${index}`}
-                    >
-                      {name
-                        .slice(0, 1)
-                        .toUpperCase()}
-                    </div>
+                {activeMembers.length === 0 ? (
+                  <p className="socalled-members-empty">
+                    Oczekiwanie na listę
+                    uczestników z serwera...
+                  </p>
+                ) : (
+                  <div className="socalled-members-list">
+                    {activeMembers.map((member) => {
+                      const canEditNickname =
+                        member.clientId === clientId ||
+                        isRoomOwner;
 
-                    <div>
-                      <strong>{name}</strong>
+                      const canChangeRole =
+                        isRoomOwner &&
+                        member.role !== "owner";
 
-                      <span>
-                        {index === 0
-                          ? "Twój profil"
-                          : "Przykładowy użytkownik"}
-                      </span>
-                    </div>
+                      return (
+                        <div
+                          className="socalled-member-entry"
+                          key={member.clientId}
+                        >
+                          <div className="socalled-member-main">
+                            <div className="socalled-member-avatar">
+                              {member.displayName
+                                .slice(0, 1)
+                                .toUpperCase()}
+                            </div>
 
-                    <span className="member-online-dot" />
+                            <div className="socalled-member-info">
+                              <strong>
+                                {member.displayName}
+                                {member.clientId ===
+                                  clientId && (
+                                  <span className="socalled-you-label">
+                                    {" "}(Ty)
+                                  </span>
+                                )}
+                              </strong>
+
+                              {member.nickname && (
+                                <span className="socalled-member-username">
+                                  @{member.username}
+                                </span>
+                              )}
+
+                              <div className="socalled-member-status">
+                                <span
+                                  className={
+                                    member.online
+                                      ? "socalled-presence online"
+                                      : "socalled-presence offline"
+                                  }
+                                />
+
+                                <span>
+                                  {member.online
+                                    ? "Online"
+                                    : "Offline"}
+                                </span>
+                              </div>
+
+                              <span
+                                className={`socalled-role-badge role-${member.role}`}
+                              >
+                                <RoleIcon
+                                  role={member.role}
+                                />
+
+                                {roleLabel(member.role)}
+                              </span>
+                            </div>
+
+                            {/* EDYCJA NICKU */}
+
+                            {canEditNickname && (
+                              <button
+                                type="button"
+                                className="socalled-member-edit-button"
+                                aria-label={`Edytuj nick ${member.displayName}`}
+                                title="Zmień nick w pokoju"
+                                onClick={() =>
+                                  startMemberEdit(member)
+                                }
+                                disabled={memberSaving}
+                              >
+                                <Pencil size={16} />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* EDYTOR NICKU */}
+
+                          {editingMemberId ===
+                            member.clientId && (
+                            <form
+                              className="socalled-nickname-form"
+                              onSubmit={
+                                saveMemberNickname
+                              }
+                            >
+                              <label>
+                                Nick w tym pokoju
+                              </label>
+
+                              <input
+                                value={memberNickname}
+                                onChange={(event) =>
+                                  setMemberNickname(
+                                    event.target.value
+                                  )
+                                }
+                                maxLength={32}
+                                placeholder={
+                                  member.username
+                                }
+                                disabled={memberSaving}
+                                autoFocus
+                              />
+
+                              <small>
+                                Puste pole przywraca
+                                podstawową nazwę.
+                              </small>
+
+                              <div className="socalled-nickname-actions">
+                                <button
+                                  type="button"
+                                  onClick={
+                                    cancelMemberEdit
+                                  }
+                                  disabled={
+                                    memberSaving
+                                  }
+                                >
+                                  Anuluj
+                                </button>
+
+                                <button
+                                  type="submit"
+                                  className="socalled-nickname-save"
+                                  disabled={
+                                    memberSaving ||
+                                    socketStatus !==
+                                      "online"
+                                  }
+                                >
+                                  <Check size={15} />
+
+                                  {memberSaving
+                                    ? "Zapisywanie..."
+                                    : "Zapisz"}
+                                </button>
+                              </div>
+                            </form>
+                          )}
+
+                          {/* NADAWANIE MODERATORA */}
+
+                          {canChangeRole && (
+                            <button
+                              type="button"
+                              className="socalled-role-control"
+                              onClick={() =>
+                                changeMemberRole(
+                                  member
+                                )
+                              }
+                              disabled={
+                                memberSaving ||
+                                socketStatus !==
+                                  "online"
+                              }
+                            >
+                              <ShieldCheck size={15} />
+
+                              {member.role ===
+                                "moderator"
+                                ? "Odbierz moderatora"
+                                : "Nadaj moderatora"}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
+                )}
+
+                {memberError && (
+                  <div
+                    className="room-form-error"
+                    role="alert"
+                  >
+                    {memberError}
+                  </div>
+                )}
+
+                {memberSuccess && (
+                  <div
+                    className="room-form-success"
+                    role="status"
+                  >
+                    <Check size={16} />
+                    {memberSuccess}
+                  </div>
+                )}
               </div>
 
               <div className="details-notice">
                 <ShieldCheck size={20} />
+
                 <p>
-                  Ustawienia pokojów synchronizujemy
-                  na żywo. Prawdziwe uprawnienia
-                  użytkowników dodamy wraz z logowaniem.
+                  Uczestnicy i ich statusy
+                  aktualizują się na żywo.
+                  Nicki i role przechowujemy
+                  obecnie w pamięci serwera.
                 </p>
               </div>
             </div>
           ) : (
             /* ==================================
-               USTAWIENIA I PERSONALIZACJA
+               USTAWIENIA POKOJU
                ================================== */
 
             <div className="details-content">
@@ -2319,15 +3284,16 @@ function App() {
                 </h4>
 
                 <p>
-                  Dostosuj nazwę, opis, ikonę
-                  i zdjęcie wybranego pokoju.
+                  Dostosuj nazwę, opis,
+                  ikonę i zdjęcie pokoju.
                 </p>
 
                 {!canEditRoom && (
                   <div className="room-editor-locked">
                     <LockKeyhole size={18} />
-                    Tylko właściciel może zmieniać
-                    ustawienia tego pokoju.
+
+                    Tylko właściciel może
+                    zmieniać ustawienia pokoju.
                   </div>
                 )}
 
@@ -2345,11 +3311,16 @@ function App() {
                     id="custom-room-name"
                     value={roomName}
                     onChange={(event) =>
-                      setRoomName(event.target.value)
+                      setRoomName(
+                        event.target.value
+                      )
                     }
                     maxLength={28}
                     required
-                    disabled={!canEditRoom || roomSaving}
+                    disabled={
+                      !canEditRoom ||
+                      roomSaving
+                    }
                   />
 
                   {/* TEMAT */}
@@ -2362,11 +3333,16 @@ function App() {
                     id="custom-room-topic"
                     value={roomTopic}
                     onChange={(event) =>
-                      setRoomTopic(event.target.value)
+                      setRoomTopic(
+                        event.target.value
+                      )
                     }
                     maxLength={100}
-                    placeholder="O czym dzisiaj rozmawiamy?"
-                    disabled={!canEditRoom || roomSaving}
+                    placeholder="O czym rozmawiamy?"
+                    disabled={
+                      !canEditRoom ||
+                      roomSaving
+                    }
                   />
 
                   {/* OPIS */}
@@ -2379,15 +3355,20 @@ function App() {
                     id="custom-room-description"
                     value={roomDescription}
                     onChange={(event) =>
-                      setRoomDescription(event.target.value)
+                      setRoomDescription(
+                        event.target.value
+                      )
                     }
                     maxLength={300}
                     rows={3}
-                    placeholder="Opisz swoją społeczność..."
-                    disabled={!canEditRoom || roomSaving}
+                    placeholder="Opisz społeczność..."
+                    disabled={
+                      !canEditRoom ||
+                      roomSaving
+                    }
                   />
 
-                  {/* WYBÓR IKONY */}
+                  {/* IKONY */}
 
                   <span className="room-custom-label">
                     Ikona pokoju
@@ -2407,9 +3388,12 @@ function App() {
                           setRoomIcon(icon)
                         }
                         aria-label={`Wybierz ikonę ${icon}`}
-                        aria-pressed={roomIcon === icon}
+                        aria-pressed={
+                          roomIcon === icon
+                        }
                         disabled={
-                          !canEditRoom || roomSaving
+                          !canEditRoom ||
+                          roomSaving
                         }
                       >
                         <RoomGlyph icon={icon} />
@@ -2417,7 +3401,7 @@ function App() {
                     ))}
                   </div>
 
-                  {/* ZDJĘCIE POKOJU */}
+                  {/* ZDJĘCIE */}
 
                   <span className="room-custom-label">
                     Zdjęcie główne
@@ -2438,7 +3422,9 @@ function App() {
                     <div className="room-image-actions">
                       <label
                         className={`room-upload-button ${
-                          !canEditRoom || roomSaving || imageBusy
+                          !canEditRoom ||
+                          roomSaving ||
+                          imageBusy
                             ? "room-upload-disabled"
                             : ""
                         }`}
@@ -2480,13 +3466,11 @@ function App() {
                       )}
 
                       <small>
-                        Zdjęcie zostanie automatycznie
-                        pomniejszone przed wysłaniem.
+                        Zdjęcie zostanie
+                        automatycznie pomniejszone.
                       </small>
                     </div>
                   </div>
-
-                  {/* KOMUNIKATY */}
 
                   {roomError && (
                     <div
@@ -2527,7 +3511,7 @@ function App() {
                 </form>
               </div>
 
-              {/* MOTYW APLIKACJI */}
+              {/* MOTYW */}
 
               <div className="details-section">
                 <h4>
@@ -2567,7 +3551,9 @@ function App() {
                         )}
                       </span>
 
-                      <span>{option.label}</span>
+                      <span>
+                        {option.label}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -2576,7 +3562,9 @@ function App() {
               {/* POWIADOMIENIA */}
 
               <div className="details-section">
-                <h4>POWIADOMIENIA</h4>
+                <h4>
+                  POWIADOMIENIA
+                </h4>
 
                 <button
                   type="button"
@@ -2594,7 +3582,9 @@ function App() {
                     <BellOff size={19} />
                   )}
 
-                  <span>Powiadomienia</span>
+                  <span>
+                    Powiadomienia
+                  </span>
 
                   <span
                     className={`toggle ${
@@ -2608,16 +3598,18 @@ function App() {
                 </button>
 
                 <p className="setting-hint">
-                  Na razie ustawienie demonstracyjne.
+                  Na razie ustawienie
+                  demonstracyjne.
                 </p>
               </div>
 
               <div className="details-notice">
                 <ShieldCheck size={20} />
+
                 <p>
-                  Zmiany pokoju są wspólne dla
-                  uczestników. Motyw kolorystyczny
-                  jest na razie indywidualny.
+                  Ustawienia pokoju są wspólne
+                  dla uczestników. Motyw
+                  kolorystyczny jest indywidualny.
                 </p>
               </div>
             </div>
@@ -2626,7 +3618,7 @@ function App() {
       </aside>
 
       {/* ====================================
-          TWORZENIE POKOJU
+          MODAL — TWORZENIE POKOJU
           ==================================== */}
 
       {createOpen && (
@@ -2682,7 +3674,9 @@ function App() {
                 id="room-name"
                 value={newRoomName}
                 onChange={(event) =>
-                  setNewRoomName(event.target.value)
+                  setNewRoomName(
+                    event.target.value
+                  )
                 }
                 maxLength={28}
                 placeholder="np. Nasza ekipa"
@@ -2704,13 +3698,14 @@ function App() {
                 />
 
                 <LockKeyhole size={18} />
-                <span>Pokój prywatny (demo)</span>
+                <span>
+                  Pokój prywatny (demo)
+                </span>
               </label>
 
               <p className="modal-hint">
-                Prywatność jest obecnie tylko
-                oznaczeniem. Dostęp zabezpieczymy
-                w wersji z kontami użytkowników.
+                Prywatność jest obecnie
+                tylko oznaczeniem.
               </p>
 
               {createError && (

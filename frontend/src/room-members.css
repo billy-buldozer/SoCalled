@@ -1,0 +1,402 @@
+
+/* ==========================================
+   SOCALLED v0.6
+   UCZESTNICY, NICKI I ROLE
+   ========================================== */
+
+.socalled-members-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+
+  width: 100%;
+  min-width: 0;
+  margin-top: 14px;
+}
+
+.socalled-members-empty {
+  color: #91ab99;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ==========================================
+   KARTA UCZESTNIKA
+   ========================================== */
+
+.socalled-member-entry {
+  min-width: 0;
+  padding: 12px;
+
+  border: 1px solid #34523e;
+  border-radius: 12px;
+
+  background: #152e20;
+}
+
+.socalled-member-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.socalled-member-avatar {
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  width: 37px;
+  height: 37px;
+
+  border: 1px solid #557b5f;
+  border-radius: 12px;
+
+  background: #2b5339;
+  color: #d6f2dd;
+
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.socalled-member-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+
+  flex: 1;
+  min-width: 0;
+}
+
+.socalled-member-info > strong {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+
+  color: #f0f9f2;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.socalled-you-label {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.socalled-member-username {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+
+  color: #8aa996;
+  font-size: 10px;
+}
+
+/* ==========================================
+   STATUS ONLINE
+   ========================================== */
+
+.socalled-member-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  color: #afc9b6;
+  font-size: 10px;
+}
+
+.socalled-presence {
+  display: inline-block;
+
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+
+  border-radius: 50%;
+}
+
+.socalled-presence.online {
+  background: #5bdd91;
+  box-shadow: 0 0 8px #42d57b70;
+}
+
+.socalled-presence.offline {
+  background: #64776b;
+}
+
+/* ==========================================
+   ROLE
+   ========================================== */
+
+.socalled-role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+
+  padding: 4px 7px;
+
+  border: 1px solid #45634b;
+  border-radius: 7px;
+
+  background: #233e2c;
+  color: #bdd5c3;
+
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.socalled-role-badge.role-owner {
+  border-color: #827244;
+  background: #453b22;
+  color: #f2d78c;
+}
+
+.socalled-role-badge.role-moderator {
+  border-color: #427c6b;
+  background: #20483d;
+  color: #a2e8d2;
+}
+
+.socalled-role-badge.role-member {
+  border-color: #426047;
+  background: #243b2b;
+  color: #bbd2c1;
+}
+
+/* ==========================================
+   TWOJA ROLA
+   ========================================== */
+
+.socalled-my-role {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  margin: 12px 0;
+
+  padding: 11px 12px;
+
+  border: 1px solid #467252;
+  border-radius: 10px;
+
+  background: #203c2a;
+  color: var(--accent);
+}
+
+.socalled-my-role strong {
+  font-size: 13px;
+  font-weight: 750;
+}
+
+/* ==========================================
+   PRZYCISK EDYCJI NICKU
+   ========================================== */
+
+.socalled-member-edit-button {
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  width: 30px;
+  height: 30px;
+
+  padding: 0;
+
+  border: 1px solid #416b4d;
+  border-radius: 9px;
+
+  background: #254733;
+  color: #d3f0dc;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+}
+
+.socalled-member-edit-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: #326446;
+}
+
+.socalled-member-edit-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ==========================================
+   FORMULARZ ZMIANY NICKU
+   ========================================== */
+
+.socalled-nickname-form {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+
+  width: 100%;
+  min-width: 0;
+
+  margin-top: 12px;
+  padding-top: 12px;
+
+  border-top: 1px solid #375741;
+}
+
+.socalled-nickname-form label {
+  color: #c4dccb;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.socalled-nickname-form input {
+  width: 100%;
+  min-width: 0;
+
+  padding: 10px 11px;
+
+  border: 1px solid #4b7355;
+  border-radius: 9px;
+
+  outline: none;
+
+  background: #102619;
+  color: #effaf1;
+
+  font: inherit;
+  font-size: 13px;
+}
+
+.socalled-nickname-form input:focus {
+  border-color: var(--accent);
+}
+
+.socalled-nickname-form input:disabled {
+  opacity: 0.55;
+}
+
+.socalled-nickname-form small {
+  color: #91b09b;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.socalled-nickname-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.socalled-nickname-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  padding: 9px 11px;
+
+  border: 1px solid #496652;
+  border-radius: 8px;
+
+  background: #243e2d;
+  color: #d8e9dd;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.socalled-nickname-actions
+  .socalled-nickname-save {
+  border-color: transparent;
+  background: var(--accent);
+  color: #0e2818;
+}
+
+.socalled-nickname-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ==========================================
+   PRZYCISK NADAWANIA ROLI
+   ========================================== */
+
+.socalled-role-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  width: 100%;
+  min-height: 34px;
+
+  margin-top: 11px;
+  padding: 8px 10px;
+
+  border: 1px solid #47796b;
+  border-radius: 9px;
+
+  background: #22463b;
+  color: #b5efdc;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+}
+
+.socalled-role-control:hover:not(:disabled) {
+  border-color: #78bd9f;
+  background: #2e6551;
+}
+
+.socalled-role-control:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ==========================================
+   MOBILE
+   ========================================== */
+
+@media (max-width: 850px) {
+  .socalled-member-entry {
+    padding: 13px;
+  }
+
+  .socalled-member-avatar {
+    width: 43px;
+    height: 43px;
+    border-radius: 13px;
+  }
+
+  .socalled-member-info > strong {
+    font-size: 13px;
+  }
+
+  .socalled-member-edit-button {
+    width: 37px;
+    height: 37px;
+  }
+
+  .socalled-nickname-form input {
+    font-size: 16px;
+  }
+
+  .socalled-nickname-actions button {
+    min-height: 39px;
+  }
+
+  .socalled-role-control {
+    min-height: 42px;
+  }
+}
