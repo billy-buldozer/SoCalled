@@ -1,0 +1,424 @@
+
+/* ==========================================
+   SOCALLED v0.7
+   ODPOWIEDZI, REAKCJE, TYPING INDICATOR
+   ========================================== */
+
+/* ==========================================
+   CYTOWANIE WIADOMOŚCI W HISTORII
+   ========================================== */
+
+.socalled-reply-quote {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+
+  width: fit-content;
+  max-width: min(400px, 100%);
+
+  margin: 2px 0 7px;
+  padding: 9px 11px;
+
+  border-left: 3px solid var(--accent);
+  border-radius: 4px 10px 10px 4px;
+
+  background: #213d2b;
+  color: #d3e6d8;
+
+  font-size: 11px;
+}
+
+.socalled-reply-quote > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.socalled-reply-quote-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  min-width: 0;
+  max-width: 100%;
+}
+
+.socalled-reply-quote-copy strong {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.socalled-reply-quote-copy span {
+  overflow: hidden;
+  display: -webkit-box;
+
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+
+  color: #b6cbbd;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* ==========================================
+   PASEK ODPOWIEDZI NAD POLEM WPISYWANIA
+   ========================================== */
+
+.socalled-reply-composer {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+
+  min-width: 0;
+  padding: 12px 17px;
+
+  border-top: 1px solid #365d42;
+  border-left: 3px solid var(--accent);
+
+  background: #193524;
+  color: #dfefe4;
+}
+
+.socalled-reply-composer > svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.socalled-reply-composer > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  flex: 1;
+  min-width: 0;
+}
+
+.socalled-reply-composer strong {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.socalled-reply-composer span {
+  color: #b5cdbc;
+  font-size: 11px;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.socalled-reply-composer button {
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  width: 31px;
+  height: 31px;
+
+  border: 1px solid #4b7055;
+  border-radius: 8px;
+
+  background: #254733;
+  color: #d7e9dc;
+
+  cursor: pointer;
+}
+
+.socalled-reply-composer button:hover {
+  border-color: var(--accent);
+}
+
+/* ==========================================
+   REAKCJE POD WIADOMOŚCIĄ
+   ========================================== */
+
+.socalled-message-social {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  width: fit-content;
+  max-width: 100%;
+
+  margin-top: 7px;
+}
+
+.socalled-reaction-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  min-width: 42px;
+  min-height: 28px;
+
+  padding: 4px 8px;
+
+  border: 1px solid #43634c;
+  border-radius: 9px;
+
+  background: #20382a;
+  color: #c9e1d0;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.15s,
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.socalled-reaction-chip span {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.socalled-reaction-chip strong {
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.socalled-reaction-chip:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: #6fa881;
+}
+
+.socalled-reaction-chip.socalled-reaction-mine {
+  border-color: var(--accent);
+  background: #2b5a3c;
+  color: #eaffed;
+}
+
+.socalled-reaction-chip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ==========================================
+   PRZYCISK DODAWANIA REAKCJI
+   ========================================== */
+
+.socalled-reaction-add {
+  display: grid;
+  place-items: center;
+
+  width: 29px;
+  height: 28px;
+
+  padding: 0;
+
+  border: 1px solid #3e5c48;
+  border-radius: 9px;
+
+  background: #1c3425;
+  color: #a9c4b0;
+
+  cursor: pointer;
+
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.socalled-reaction-add:hover:not(:disabled),
+.socalled-reaction-add[aria-expanded="true"] {
+  background: #315a40;
+  color: var(--accent);
+}
+
+.socalled-reaction-add:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ==========================================
+   WYBÓR EMOJI
+   ========================================== */
+
+.socalled-reaction-picker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+
+  width: fit-content;
+  max-width: 100%;
+
+  margin-top: 8px;
+  padding: 6px;
+
+  border: 1px solid #547b5d;
+  border-radius: 12px;
+
+  background: #163322;
+  box-shadow: 0 8px 22px #0005;
+}
+
+.socalled-reaction-picker button {
+  display: grid;
+  place-items: center;
+
+  width: 36px;
+  height: 36px;
+
+  padding: 0;
+
+  border: none;
+  border-radius: 8px;
+
+  background: transparent;
+
+  font-size: 21px;
+  cursor: pointer;
+
+  transition:
+    background 0.15s,
+    transform 0.15s;
+}
+
+.socalled-reaction-picker button:hover {
+  background: #315842;
+  transform: scale(1.12);
+}
+
+/* ==========================================
+   WSKAŹNIK PISANIA
+   ========================================== */
+
+.socalled-typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  min-height: 35px;
+  padding: 8px 19px;
+
+  border-top: 1px solid #284735;
+
+  background: #142b1e;
+  color: #a9c7b3;
+
+  font-size: 11px;
+  font-style: italic;
+}
+
+/* ==========================================
+   ANIMOWANE TRZY KROPKI
+   ========================================== */
+
+.socalled-typing-dots {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 3px;
+
+  height: 13px;
+}
+
+.socalled-typing-dots i {
+  display: block;
+
+  width: 5px;
+  height: 5px;
+
+  border-radius: 50%;
+  background: var(--accent);
+
+  animation: socalled-typing-pulse 1.2s
+    infinite ease-in-out;
+}
+
+.socalled-typing-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.socalled-typing-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes socalled-typing-pulse {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+
+  30% {
+    transform: translateY(-5px);
+    opacity: 1;
+  }
+}
+
+/* ==========================================
+   POPRAWKI UKŁADU WIADOMOŚCI
+   ========================================== */
+
+.message-body {
+  min-width: 0;
+}
+
+.message-bubble {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.message-meta {
+  flex-wrap: wrap;
+}
+
+/* ==========================================
+   MOBILE
+   ========================================== */
+
+@media (max-width: 850px) {
+  .socalled-reply-composer {
+    padding: 10px 13px;
+  }
+
+  .socalled-reply-composer strong {
+    font-size: 12px;
+  }
+
+  .socalled-reply-quote {
+    max-width: 100%;
+    padding: 8px 10px;
+  }
+
+  .socalled-reaction-chip {
+    min-height: 33px;
+    padding: 5px 9px;
+  }
+
+  .socalled-reaction-add {
+    width: 34px;
+    height: 33px;
+  }
+
+  .socalled-reaction-picker {
+    padding: 7px;
+  }
+
+  .socalled-reaction-picker button {
+    width: 39px;
+    height: 39px;
+    font-size: 23px;
+  }
+
+  .socalled-typing-indicator {
+    padding: 9px 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .socalled-typing-dots i {
+    animation: none;
+    opacity: 0.9;
+  }
+
+  .socalled-reaction-chip,
+  .socalled-reaction-picker button {
+    transition: none;
+  }
+}

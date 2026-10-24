@@ -1,0 +1,147 @@
+
+/* ==========================================
+   SOCALLED v0.9.1
+   PODWÓJNE KLIKNIĘCIE = ❤️
+   ========================================== */
+
+/* ==========================================
+   OBSZAR PODWÓJNEGO KLIKNIĘCIA
+   ========================================== */
+
+.socalled-double-like-area {
+  position: relative;
+  min-width: 0;
+
+  /* Pomaga zapobiegać powiększaniu strony
+     po podwójnym tapnięciu na telefonie. */
+  touch-action: manipulation;
+
+  -webkit-tap-highlight-color: transparent;
+}
+
+.socalled-double-like-area .message-bubble,
+.socalled-double-like-area .socalled-chat-image-button {
+  touch-action: manipulation;
+}
+
+/* ==========================================
+   ANIMOWANE SERDUSZKO
+   ========================================== */
+
+.socalled-double-heart {
+  position: absolute;
+  top: 45%;
+  left: 25%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100px;
+  height: 100px;
+
+  color: #ff547c;
+
+  pointer-events: none;
+  user-select: none;
+
+  z-index: 15;
+
+  opacity: 0;
+
+  filter: drop-shadow(
+    0 4px 18px rgba(255, 58, 112, 0.4)
+  );
+
+  animation: socalled-heart-pop 0.8s
+    cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+/* Nasze wiadomości są wyrównane do prawej. */
+
+.message-row--mine
+.socalled-double-heart {
+  left: auto;
+  right: 12%;
+}
+
+/* ==========================================
+   ANIMACJA
+   ========================================== */
+
+@keyframes socalled-heart-pop {
+  0% {
+    opacity: 0;
+    transform:
+      translate(-50%, -40%)
+      scale(0.35)
+      rotate(-12deg);
+  }
+
+  25% {
+    opacity: 1;
+    transform:
+      translate(-50%, -50%)
+      scale(1.25)
+      rotate(5deg);
+  }
+
+  48% {
+    opacity: 1;
+    transform:
+      translate(-50%, -50%)
+      scale(0.95)
+      rotate(0deg);
+  }
+
+  70% {
+    opacity: 1;
+    transform:
+      translate(-50%, -55%)
+      scale(1.05);
+  }
+
+  100% {
+    opacity: 0;
+    transform:
+      translate(-50%, -85%)
+      scale(1.15);
+  }
+}
+
+/* ==========================================
+   TELEFONY
+   ========================================== */
+
+@media (max-width: 850px) {
+  .socalled-double-heart {
+    width: 82px;
+    height: 82px;
+
+    left: 24%;
+  }
+
+  .socalled-double-heart svg {
+    width: 65px;
+    height: 65px;
+  }
+
+  .message-row--mine
+  .socalled-double-heart {
+    left: auto;
+    right: 5%;
+  }
+}
+
+/* ==========================================
+   OGRANICZENIE ANIMACJI
+   ========================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .socalled-double-heart {
+    animation: none;
+
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}

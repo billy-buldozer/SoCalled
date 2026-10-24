@@ -1,0 +1,314 @@
+
+/* ==========================================
+   SOCALLED v0.10
+   FILMY W WIADOMOŚCIACH
+   ========================================== */
+
+/* ==========================================
+   PRZYCISK DODAWANIA FILMU
+   ========================================== */
+
+.message-composer .socalled-video-attach {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.message-composer .socalled-video-attach:hover:not(:disabled) {
+  background: #30533b;
+  border-color: var(--accent);
+}
+
+/* ==========================================
+   FILM W WIADOMOŚCI
+   ========================================== */
+
+.socalled-chat-video-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+
+  width: min(420px, 100%);
+  max-width: 100%;
+  min-width: 0;
+
+  margin: 6px 0 9px;
+
+  overflow: hidden;
+
+  border: 1px solid #456d51;
+  border-radius: 14px;
+
+  background: #0c1a12;
+}
+
+.message-row--mine .message-body
+  > .socalled-chat-video-wrap {
+  align-self: flex-end;
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.socalled-chat-video-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 9px 12px;
+
+  background: #1c3928;
+  color: #bcdcc5;
+
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.socalled-chat-video-label svg {
+  color: var(--accent);
+}
+
+.socalled-chat-video {
+  display: block;
+
+  width: 100%;
+  max-width: 100%;
+  max-height: 340px;
+
+  background: #000000;
+
+  object-fit: contain;
+  outline: none;
+}
+
+/* ==========================================
+   PANEL WYSYŁANIA FILMU
+   ========================================== */
+
+.socalled-video-uploading,
+.socalled-video-attachment {
+  border-top: 1px solid #426e51;
+  background: #183525;
+}
+
+.socalled-video-uploading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  min-width: 0;
+  padding: 13px 16px;
+}
+
+.socalled-video-uploading > svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.socalled-video-uploading > div,
+.socalled-video-attachment-heading > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  flex: 1;
+  min-width: 0;
+}
+
+.socalled-video-uploading strong,
+.socalled-video-attachment-heading strong {
+  color: #e7f7eb;
+
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.socalled-video-uploading span,
+.socalled-video-attachment-heading span {
+  color: #adccb6;
+
+  font-size: 11px;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.socalled-video-uploading button,
+.socalled-video-attachment-heading button {
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  width: 32px;
+  height: 32px;
+
+  padding: 0;
+
+  border: 1px solid #735553;
+  border-radius: 9px;
+
+  background: #3a2928;
+  color: #f0b8b4;
+
+  cursor: pointer;
+}
+
+.socalled-video-uploading button:hover,
+.socalled-video-attachment-heading button:hover {
+  background: #543331;
+}
+
+/* ==========================================
+   PODGLĄD ZAŁĄCZONEGO FILMU
+   ========================================== */
+
+.socalled-video-attachment {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  padding: 12px 16px;
+}
+
+.socalled-video-attachment-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  min-width: 0;
+}
+
+.socalled-video-attachment-heading > svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.socalled-video-attachment-preview {
+  display: block;
+
+  width: min(340px, 100%);
+  max-height: 190px;
+
+  border: 1px solid #476b51;
+  border-radius: 11px;
+
+  background: #000000;
+
+  object-fit: contain;
+}
+
+.socalled-video-attachment p {
+  margin: 0;
+
+  color: #a8c6b1;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* ==========================================
+   BŁĘDY
+   ========================================== */
+
+.socalled-video-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+
+  padding: 10px 16px;
+
+  border-top: 1px solid #80514b;
+
+  background: #3c2926;
+  color: #ffc9c2;
+
+  font-size: 12px;
+}
+
+.socalled-video-error button {
+  display: grid;
+  place-items: center;
+
+  width: 28px;
+  height: 28px;
+
+  flex-shrink: 0;
+
+  padding: 0;
+
+  border: none;
+  background: transparent;
+  color: inherit;
+
+  cursor: pointer;
+}
+
+/* ==========================================
+   PODGLĄD PRZEKAZYWANEGO FILMU
+   ========================================== */
+
+.socalled-forward-video-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  width: fit-content;
+  max-width: 100%;
+
+  padding: 11px 13px;
+
+  border: 1px solid #476f55;
+  border-radius: 10px;
+
+  background: #203e2b;
+
+  color: #d9ecdf;
+  font-size: 12px;
+}
+
+.socalled-forward-video-preview svg {
+  color: var(--accent);
+}
+
+/* ==========================================
+   RESPONSYWNOŚĆ
+   ========================================== */
+
+@media (max-width: 850px) {
+  .socalled-chat-video-wrap {
+    width: min(320px, 100%);
+    border-radius: 12px;
+  }
+
+  .socalled-chat-video {
+    max-height: 280px;
+  }
+
+  .socalled-video-attachment {
+    padding: 10px 12px;
+  }
+
+  .socalled-video-uploading {
+    padding: 10px 12px;
+  }
+
+  .socalled-video-attachment-preview {
+    width: min(290px, 100%);
+    max-height: 170px;
+  }
+
+  .message-composer .socalled-video-attach {
+    flex-basis: 34px;
+    width: 34px;
+  }
+}
+
+@media (max-width: 360px) {
+  .socalled-chat-video-wrap {
+    width: min(270px, 100%);
+  }
+
+  .socalled-chat-video {
+    max-height: 240px;
+  }
+}

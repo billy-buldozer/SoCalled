@@ -10,8 +10,14 @@ from uuid import uuid4
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
+from backend.app.video_uploads import (
+    router as video_router,
+    video_exists,
+)
+
 
 app = FastAPI(title="SoCalled API")
+app.include_router(video_router)
 
 
 # ==========================================
@@ -20,11 +26,17 @@ app = FastAPI(title="SoCalled API")
 
 MAX_MESSAGES = 200
 MAX_MESSAGE_LENGTH = 2000
-MAX_IMAGE_BYTES = 240_000
+MAX_IMAGE_BYTES = 180_000
+MAX_IMAGE_DATA_LENGTH = 245_000
+MAX_REPLY_PREVIEW = 140
 
 ALLOWED_ICONS = {
     "hash", "game", "code", "music",
     "camera", "coffee", "globe",
+}
+
+ALLOWED_REACTIONS = {
+    "❤️", "😂", "🔥", "👍", "😮", "🎉",
 }
 
 ROLE_ORDER = {
@@ -35,7 +47,7 @@ ROLE_ORDER = {
 
 
 # ==========================================
-# POKOJE DOMYŚLNE
+# DOMYŚLNE POKOJE
 # ==========================================
 
 DEFAULT_ROOMS = [
@@ -92,7 +104,7 @@ DEFAULT_ROOMS = [
 
 
 # ==========================================
-# MODELE PAMIĘCI
+# STRUKTURY DANYCH
 # ==========================================
 
 @dataclass(eq=False)
@@ -114,10 +126,20 @@ class ClientConnection:
 @dataclass
 class RoomState:
     info: dict
-    messages: list[dict] = field(default_factory=list)
-    members: dict[str, dict] = field(default_factory=dict)
+
+    messages: list[dict] = field(
+        default_factory=list
+    )
+
+    members: dict[str, dict] = field(
+        default_factory=dict
+    )
 
     connections: set[ClientConnection] = field(
+        default_factory=set
+    )
+
+    typing_ids: set[str] = field(
         default_factory=set
     )
 
@@ -126,17 +148,21 @@ class RoomState:
     )
 
 
+# ==========================================
+# STAN SERWERA
+# ==========================================
+
 rooms: dict[str, RoomState] = {}
 
 for data in DEFAULT_ROOMS:
-    room_info = {
+    info = {
         **data,
         "image": None,
         "isPrivate": False,
         "ownerId": None,
     }
 
-    rooms[room_info["id"]] = RoomState(info=room_info)
+    rooms[info["id"]] = RoomState(info=info)
 
 
 rooms_lock = asyncio.Lock()
@@ -156,7 +182,7 @@ def is_valid_id(value) -> bool:
         isinstance(value, str)
         and re.fullmatch(
             r"[a-zA-Z0-9_-]{1,80}",
-            value
+            value,
         ) is not None
     )
 
@@ -190,10 +216,7 @@ def online_count(room: RoomState) -> int:
 
 
 def member_display_name(member: dict) -> str:
-    return (
-        member["nickname"]
-        or member["username"]
-    )
+    return member["nickname"] or member["username"]
 
 
 def ensure_member(
@@ -265,8 +288,23 @@ def room_snapshot() -> list[dict]:
     ]
 
 
+def message_preview(message: dict | None) -> str:
+    if message is None:
+        return "Brak wiadomości"
+
+    text = message.get("text", "")
+
+    if message.get("videoId"):
+        return f"🎬 {text}" if text else "🎬 Film"
+
+    if message.get("image"):
+        return f"📷 {text}" if text else "📷 Zdjęcie"
+
+    return text
+
+
 # ==========================================
-# WALIDACJA ZDJĘCIA
+# WALIDACJA ZDJĘĆ
 # ==========================================
 
 def valid_image(value) -> bool:
@@ -276,7 +314,7 @@ def valid_image(value) -> bool:
     if not isinstance(value, str):
         return False
 
-    if len(value) > 330_000:
+    if len(value) > MAX_IMAGE_DATA_LENGTH:
         return False
 
     match = re.fullmatch(
@@ -287,8 +325,6 @@ def valid_image(value) -> bool:
 
     if not match:
         return False
-
-    image_format = match.group(1)
 
     try:
         raw = base64.b64decode(
@@ -301,10 +337,10 @@ def valid_image(value) -> bool:
     if not raw or len(raw) > MAX_IMAGE_BYTES:
         return False
 
+    image_format = match.group(1)
+
     if image_format == "png":
-        return raw.startswith(
-            b"\x89PNG\r\n\x1a\n"
-        )
+        return raw.startswith(b"\x89PNG\r\n\x1a\n")
 
     if image_format == "jpeg":
         return raw.startswith(b"\xff\xd8\xff")
@@ -344,12 +380,105 @@ def validate_room_data(payload: dict) -> str | None:
         return "Temat może mieć maksymalnie 100 znaków."
 
     if icon not in ALLOWED_ICONS:
-        return "Wybrano nieprawidłową ikonę."
+        return "Nieprawidłowa ikona."
 
     if not valid_image(image):
-        return "Nieprawidłowy format lub rozmiar zdjęcia."
+        return "Nieprawidłowe zdjęcie pokoju."
 
     return None
+
+
+# ==========================================
+# CYTOWANIE WIADOMOŚCI
+# ==========================================
+
+def reply_snapshot(message: dict) -> dict:
+    text = message["text"]
+
+    if message.get("videoId"):
+        text = (
+            "🎬 Film"
+            + (f" — {text}" if text else "")
+        )
+
+    elif message.get("image"):
+        text = (
+            "📷 Zdjęcie"
+            + (f" — {text}" if text else "")
+        )
+
+    return {
+        "id": message["id"],
+        "clientId": message["clientId"],
+        "author": message["author"],
+        "text": text[:MAX_REPLY_PREVIEW],
+        "deleted": False,
+    }
+
+
+def update_reply_snapshots(
+    room: RoomState,
+    source_id: str,
+    source: dict | None,
+) -> list[dict]:
+    changes = []
+
+    for message in room.messages:
+        reply = message.get("replyTo")
+
+        if not reply or reply["id"] != source_id:
+            continue
+
+        if source is None:
+            reply["text"] = "Wiadomość usunięta"
+            reply["deleted"] = True
+
+        else:
+            updated = reply_snapshot(source)
+
+            reply["author"] = updated["author"]
+            reply["text"] = updated["text"]
+            reply["deleted"] = False
+
+        changes.append({
+            "messageId": message["id"],
+            "replyTo": dict(reply),
+        })
+
+    return changes
+
+
+# ==========================================
+# REAKCJE I STATUS PISANIA
+# ==========================================
+
+def copy_reactions(message: dict) -> dict:
+    return {
+        emoji: list(user_ids)
+        for emoji, user_ids in message.get(
+            "reactions", {}
+        ).items()
+    }
+
+
+def typing_snapshot(room: RoomState) -> list[dict]:
+    result = []
+
+    for client_id in room.typing_ids:
+        member = room.members.get(client_id)
+
+        if (
+            member is None
+            or not is_member_online(room, client_id)
+        ):
+            continue
+
+        result.append({
+            "clientId": client_id,
+            "displayName": member_display_name(member),
+        })
+
+    return result
 
 
 # ==========================================
@@ -381,7 +510,7 @@ async def broadcast(
 
             room = rooms.get(client.room_id)
 
-            if room:
+            if room is not None:
                 room.connections.discard(client)
 
     await asyncio.gather(
@@ -403,9 +532,19 @@ async def broadcast_room(
     await broadcast(room.connections, event)
 
 
-# ==========================================
-# SYNCHRONIZACJA UCZESTNIKÓW
-# ==========================================
+async def publish_typing(
+    room_id: str,
+    room: RoomState,
+):
+    async with room.lock:
+        event = {
+            "type": "typing_status",
+            "roomId": room_id,
+            "users": typing_snapshot(room),
+        }
+
+    await broadcast_room(room, event)
+
 
 async def publish_presence(
     room_id: str,
@@ -424,13 +563,11 @@ async def publish_presence(
             "updatedBy": updated_by,
         }
 
-    # Informujemy wszystkich o liczbie osób.
-    # Lista uczestników służy do widoku pokoju.
     await broadcast_global(event)
 
 
 # ==========================================
-# ENDPOINTY HTTP
+# HTTP
 # ==========================================
 
 @app.get("/")
@@ -438,7 +575,7 @@ async def home():
     return {
         "application": "SoCalled",
         "status": "running",
-        "version": "0.6",
+        "version": "0.10",
     }
 
 
@@ -465,10 +602,7 @@ async def handle_create_room(
     is_private = payload.get("isPrivate", False)
 
     if not isinstance(name, str):
-        await send_error(
-            client,
-            "Podaj nazwę pokoju.",
-        )
+        await send_error(client, "Podaj nazwę pokoju.")
         return
 
     name = name.strip()
@@ -520,11 +654,6 @@ async def handle_create_room(
 
     await publish_presence(room_id, room)
 
-    print(
-        f"[ROOM CREATE] {room_id} "
-        f"by {client.nickname}"
-    )
-
 
 # ==========================================
 # PERSONALIZACJA POKOJU
@@ -551,11 +680,13 @@ async def handle_update_room(
     async with room.lock:
         owner_id = room.info["ownerId"]
 
-        if owner_id not in (None, client.client_id):
+        if owner_id not in (
+            None,
+            client.client_id,
+        ):
             error = (
                 "Tylko właściciel może edytować ten pokój."
             )
-
         else:
             error = None
 
@@ -593,14 +724,9 @@ async def handle_update_room(
 
     await publish_presence(client.room_id, room)
 
-    print(
-        f"[ROOM UPDATE] {client.room_id} "
-        f"by {client.nickname}"
-    )
-
 
 # ==========================================
-# ZMIANA NICKU W POKOJU
+# NICKI UCZESTNIKÓW
 # ==========================================
 
 async def handle_set_room_nickname(
@@ -644,19 +770,24 @@ async def handle_set_room_nickname(
                 "Nie możesz zmieniać nicków "
                 "innych uczestników."
             )
-
         else:
             error = None
 
-            # Pusty nick przywraca nazwę podstawową.
             target["nickname"] = nickname or None
             display_name = member_display_name(target)
 
-            # Aktualizujemy też podpisy starych
-            # wiadomości tego uczestnika.
             for message in room.messages:
                 if message["clientId"] == target_id:
                     message["author"] = display_name
+
+                reply = message.get("replyTo")
+
+                if (
+                    reply
+                    and reply.get("clientId") == target_id
+                    and not reply.get("deleted")
+                ):
+                    reply["author"] = display_name
 
     if error:
         await send_error(client, error)
@@ -676,14 +807,9 @@ async def handle_set_room_nickname(
         updated_by=client.client_id,
     )
 
-    print(
-        f"[NICK] room={client.room_id} "
-        f"target={target_id} -> {display_name}"
-    )
-
 
 # ==========================================
-# NADAWANIE ROLI MODERATORA
+# NADAWANIE RÓL
 # ==========================================
 
 async def handle_set_member_role(
@@ -698,10 +824,7 @@ async def handle_set_member_role(
         return
 
     if role not in ("member", "moderator"):
-        await send_error(
-            client,
-            "Można nadać rolę moderatora lub uczestnika.",
-        )
+        await send_error(client, "Nieprawidłowa rola.")
         return
 
     async with room.lock:
@@ -731,14 +854,9 @@ async def handle_set_member_role(
         updated_by=client.client_id,
     )
 
-    print(
-        f"[ROLE] room={client.room_id} "
-        f"target={target_id} -> {role}"
-    )
-
 
 # ==========================================
-# WYSYŁANIE WIADOMOŚCI
+# NOWA WIADOMOŚĆ — TEKST / ZDJĘCIE / FILM
 # ==========================================
 
 async def handle_send_message(
@@ -746,17 +864,63 @@ async def handle_send_message(
     room: RoomState,
     payload: dict,
 ):
-    text = payload.get("text")
+    text = payload.get("text", "")
+    image = payload.get("image")
+    video_id = payload.get("video_id")
+    reply_id = payload.get("reply_to")
 
     if not isinstance(text, str):
+        await send_error(
+            client,
+            "Nieprawidłowa treść wiadomości.",
+        )
         return
 
     text = text.strip()
 
-    if not 1 <= len(text) <= MAX_MESSAGE_LENGTH:
+    if len(text) > MAX_MESSAGE_LENGTH:
         await send_error(
             client,
-            "Wiadomość musi mieć od 1 do 2000 znaków.",
+            "Wiadomość jest za długa.",
+        )
+        return
+
+    if not valid_image(image):
+        await send_error(
+            client,
+            "Nieprawidłowe lub zbyt duże zdjęcie.",
+        )
+        return
+
+    if video_id is not None:
+        if not video_exists(video_id):
+            await send_error(
+                client,
+                "Nie znaleziono przesłanego filmu.",
+            )
+            return
+
+    if image is not None and video_id is not None:
+        await send_error(
+            client,
+            "Wyślij zdjęcie albo film, nie oba naraz.",
+        )
+        return
+
+    if not text and image is None and video_id is None:
+        await send_error(
+            client,
+            "Dodaj tekst, zdjęcie lub film.",
+        )
+        return
+
+    if (
+        reply_id is not None
+        and not isinstance(reply_id, str)
+    ):
+        await send_error(
+            client,
+            "Nieprawidłowa wiadomość do odpowiedzi.",
         )
         return
 
@@ -767,32 +931,202 @@ async def handle_send_message(
             client.nickname,
         )
 
-        message = {
-            "id": str(uuid4()),
-            "roomId": client.room_id,
-            "clientId": client.client_id,
-            "author": member_display_name(member),
-            "time": utc_now(),
-            "editedAt": None,
-            "text": text,
-        }
+        reply_to = None
 
-        room.messages.append(message)
+        if reply_id:
+            original = find_message(room, reply_id)
 
-        if len(room.messages) > MAX_MESSAGES:
-            del room.messages[:-MAX_MESSAGES]
+            if original is None:
+                error = (
+                    "Nie można odpowiedzieć na "
+                    "usuniętą wiadomość."
+                )
+            else:
+                error = None
+                reply_to = reply_snapshot(original)
+        else:
+            error = None
 
-        await broadcast_room(
-            room,
-            {
-                "type": "message_created",
-                "message": dict(message),
-            },
-        )
+        if error is None:
+            message = {
+                "id": str(uuid4()),
+                "roomId": client.room_id,
+                "clientId": client.client_id,
+                "author": member_display_name(member),
+                "time": utc_now(),
+                "editedAt": None,
+                "text": text,
+                "image": image,
+
+                # NOWOŚĆ: identyfikator pliku
+                # zapisanego wcześniej przez HTTP.
+                "videoId": video_id,
+
+                "replyTo": reply_to,
+                "reactions": {},
+                "forwardedFrom": None,
+            }
+
+            room.messages.append(message)
+
+            if len(room.messages) > MAX_MESSAGES:
+                del room.messages[:-MAX_MESSAGES]
+
+            room.typing_ids.discard(client.client_id)
+
+            await broadcast_room(
+                room,
+                {
+                    "type": "message_created",
+                    "message": dict(message),
+                },
+            )
+
+    if error:
+        await send_error(client, error)
+        return
+
+    await publish_typing(client.room_id, room)
 
 
 # ==========================================
-# EDYCJA WIADOMOŚCI
+# PRZEKAZYWANIE WIADOMOŚCI
+# ==========================================
+
+async def handle_forward_message(
+    client: ClientConnection,
+    source_room: RoomState,
+    payload: dict,
+):
+    message_id = payload.get("message_id")
+    target_room_id = payload.get("target_room_id")
+    request_id = payload.get("requestId")
+
+    if not is_valid_id(message_id):
+        await send_error(
+            client,
+            "Nieprawidłowy identyfikator wiadomości.",
+        )
+        return
+
+    if not is_valid_id(target_room_id):
+        await send_error(
+            client,
+            "Wybierz prawidłowy pokój docelowy.",
+        )
+        return
+
+    if target_room_id == client.room_id:
+        await send_error(
+            client,
+            "Wybierz inny pokój niż obecny.",
+        )
+        return
+
+    async with rooms_lock:
+        target_room = rooms.get(target_room_id)
+
+    if target_room is None:
+        await send_error(
+            client,
+            "Nie znaleziono pokoju docelowego.",
+        )
+        return
+
+    async with source_room.lock:
+        original = find_message(
+            source_room,
+            message_id,
+        )
+
+        if original is None:
+            source_data = None
+        else:
+            source_data = {
+                "text": original["text"],
+                "image": original.get("image"),
+                "videoId": original.get("videoId"),
+                "author": original["author"],
+                "roomId": client.room_id,
+                "roomName": source_room.info["name"],
+                "messageId": original["id"],
+            }
+
+    if source_data is None:
+        await send_error(
+            client,
+            "Wiadomość została usunięta.",
+        )
+        return
+
+    async with target_room.lock:
+        target_member = target_room.members.get(
+            client.client_id
+        )
+
+        sender_name = (
+            member_display_name(target_member)
+            if target_member
+            else client.nickname
+        )
+
+        forwarded = {
+            "id": str(uuid4()),
+            "roomId": target_room_id,
+            "clientId": client.client_id,
+            "author": sender_name,
+            "time": utc_now(),
+            "editedAt": None,
+
+            "text": source_data["text"],
+            "image": source_data["image"],
+
+            # Przekazujemy identyfikator tego samego
+            # pliku wideo, bez kopiowania go na dysku.
+            "videoId": source_data["videoId"],
+
+            "replyTo": None,
+            "reactions": {},
+
+            "forwardedFrom": {
+                "roomId": source_data["roomId"],
+                "roomName": source_data["roomName"],
+                "author": source_data["author"],
+                "messageId": source_data["messageId"],
+            },
+        }
+
+        target_room.messages.append(forwarded)
+
+        if len(target_room.messages) > MAX_MESSAGES:
+            del target_room.messages[:-MAX_MESSAGES]
+
+        await broadcast_room(
+            target_room,
+            {
+                "type": "message_created",
+                "message": dict(forwarded),
+            },
+        )
+
+    await broadcast_global({
+        "type": "room_activity",
+        "roomId": target_room_id,
+        "preview": message_preview(forwarded),
+        "time": forwarded["time"],
+    })
+
+    await client.send({
+        "type": "message_forwarded",
+        "requestId": request_id,
+        "targetRoomId": target_room_id,
+        "targetRoomName": target_room.info["name"],
+        "messageId": forwarded["id"],
+    })
+
+
+# ==========================================
+# EDYCJA WIADOMOŚCI / PODPISU
 # ==========================================
 
 async def handle_edit_message(
@@ -811,10 +1145,10 @@ async def handle_edit_message(
 
     new_text = new_text.strip()
 
-    if not 1 <= len(new_text) <= MAX_MESSAGE_LENGTH:
+    if len(new_text) > MAX_MESSAGE_LENGTH:
         await send_error(
             client,
-            "Nowa treść musi mieć od 1 do 2000 znaków.",
+            "Nowa treść jest za długa.",
         )
         return
 
@@ -829,11 +1163,26 @@ async def handle_edit_message(
                 "Możesz edytować tylko własne wiadomości."
             )
 
+        elif (
+            not new_text
+            and not message.get("image")
+            and not message.get("videoId")
+        ):
+            error = (
+                "Wiadomość tekstowa nie może być pusta."
+            )
+
         else:
             error = None
 
             message["text"] = new_text
             message["editedAt"] = utc_now()
+
+            changes = update_reply_snapshots(
+                room,
+                message_id,
+                message,
+            )
 
             latest = (
                 dict(room.messages[-1])
@@ -849,12 +1198,21 @@ async def handle_edit_message(
                 },
             )
 
+            for change in changes:
+                await broadcast_room(
+                    room,
+                    {
+                        "type": "message_reply_updated",
+                        **change,
+                    },
+                )
+
     if error:
         await send_error(client, error)
 
 
 # ==========================================
-# USUWANIE I MODERACJA WIADOMOŚCI
+# USUWANIE WIADOMOŚCI
 # ==========================================
 
 async def handle_delete_message(
@@ -869,7 +1227,6 @@ async def handle_delete_message(
 
     async with room.lock:
         message = find_message(room, message_id)
-
         member = room.members.get(client.client_id)
 
         role = (
@@ -877,8 +1234,9 @@ async def handle_delete_message(
             if member else "member"
         )
 
-        can_moderate = (
-            role in ("owner", "moderator")
+        can_moderate = role in (
+            "owner",
+            "moderator",
         )
 
         if message is None:
@@ -898,6 +1256,12 @@ async def handle_delete_message(
 
             room.messages.remove(message)
 
+            changes = update_reply_snapshots(
+                room,
+                message_id,
+                None,
+            )
+
             latest = (
                 dict(room.messages[-1])
                 if room.messages else None
@@ -913,12 +1277,113 @@ async def handle_delete_message(
                 },
             )
 
+            for change in changes:
+                await broadcast_room(
+                    room,
+                    {
+                        "type": "message_reply_updated",
+                        **change,
+                    },
+                )
+
     if error:
         await send_error(client, error)
 
 
 # ==========================================
-# WEBSOCKET — POŁĄCZENIE
+# REAKCJE EMOJI
+# ==========================================
+
+async def handle_toggle_reaction(
+    client: ClientConnection,
+    room: RoomState,
+    payload: dict,
+):
+    message_id = payload.get("message_id")
+    emoji = payload.get("emoji")
+
+    if not isinstance(message_id, str):
+        return
+
+    if (
+        not isinstance(emoji, str)
+        or emoji not in ALLOWED_REACTIONS
+    ):
+        await send_error(
+            client,
+            "Nieobsługiwana reakcja.",
+        )
+        return
+
+    async with room.lock:
+        message = find_message(
+            room,
+            message_id,
+        )
+
+        if message is None:
+            error = "Nie znaleziono wiadomości."
+
+        else:
+            error = None
+
+            reactions = message.setdefault(
+                "reactions", {}
+            )
+
+            users = reactions.setdefault(
+                emoji, []
+            )
+
+            if client.client_id in users:
+                users.remove(client.client_id)
+            else:
+                users.append(client.client_id)
+
+            if not users:
+                del reactions[emoji]
+
+            await broadcast_room(
+                room,
+                {
+                    "type": "message_reactions_updated",
+                    "messageId": message_id,
+                    "reactions": copy_reactions(message),
+                },
+            )
+
+    if error:
+        await send_error(client, error)
+
+
+# ==========================================
+# WSKAŹNIK PISANIA
+# ==========================================
+
+async def handle_typing(
+    client: ClientConnection,
+    room: RoomState,
+    payload: dict,
+):
+    is_typing = payload.get("isTyping")
+
+    if not isinstance(is_typing, bool):
+        return
+
+    async with room.lock:
+        if is_typing:
+            room.typing_ids.add(client.client_id)
+        else:
+            room.typing_ids.discard(client.client_id)
+
+    await publish_typing(
+        client.room_id,
+        room,
+    )
+
+
+# ==========================================
+# GŁÓWNY WEBSOCKET
 # ==========================================
 
 @app.websocket("/ws/rooms/{room_id}")
@@ -966,10 +1431,6 @@ async def room_websocket(
     )
 
     try:
-        # ==================================
-        # DOŁĄCZENIE DO POKOJU
-        # ==================================
-
         async with room.lock:
             ensure_member(
                 room,
@@ -994,12 +1455,9 @@ async def room_websocket(
             all_connections.add(client)
 
         await publish_presence(room_id, room)
+        await publish_typing(room_id, room)
 
         print(f"[JOIN] {nickname} -> {room_id}")
-
-        # ==================================
-        # ODBIERANIE ZDARZEŃ
-        # ==================================
 
         while True:
             try:
@@ -1022,6 +1480,11 @@ async def room_websocket(
                     client, room, payload
                 )
 
+            elif event_type == "forward_message":
+                await handle_forward_message(
+                    client, room, payload
+                )
+
             elif event_type == "edit_message":
                 await handle_edit_message(
                     client, room, payload
@@ -1029,6 +1492,16 @@ async def room_websocket(
 
             elif event_type == "delete_message":
                 await handle_delete_message(
+                    client, room, payload
+                )
+
+            elif event_type == "toggle_reaction":
+                await handle_toggle_reaction(
+                    client, room, payload
+                )
+
+            elif event_type == "typing":
+                await handle_typing(
                     client, room, payload
                 )
 
@@ -1056,11 +1529,19 @@ async def room_websocket(
         pass
 
     finally:
-        # Użytkownik pozostaje na liście
-        # uczestników, ale ma status offline.
-        room.connections.discard(client)
-        all_connections.discard(client)
+        async with room.lock:
+            room.connections.discard(client)
+            all_connections.discard(client)
+
+            if not is_member_online(
+                room,
+                client.client_id,
+            ):
+                room.typing_ids.discard(
+                    client.client_id
+                )
 
         await publish_presence(room_id, room)
+        await publish_typing(room_id, room)
 
         print(f"[LEAVE] {nickname} -> {room_id}")

@@ -1,0 +1,539 @@
+
+/* ==========================================
+   SOCALLED v0.8
+   ZDJĘCIA W WIADOMOŚCIACH
+   POPRAWIONY WYGLĄD DESKTOP + MOBILE
+   ========================================== */
+
+/* ==========================================
+   UKRYTY INPUT PLIKU
+   ========================================== */
+
+.message-composer .socalled-hidden-file-input {
+  display: none !important;
+}
+
+/* ==========================================
+   PRZYCISK DODAWANIA ZDJĘCIA
+   ========================================== */
+
+.message-composer .socalled-composer-attach {
+  display: grid;
+  place-items: center;
+
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+
+  padding: 0;
+  margin-right: 7px;
+
+  border: 1px solid #41634c;
+  border-radius: 11px;
+
+  background: #203c2b;
+  color: var(--accent);
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    transform 0.2s;
+}
+
+.message-composer .socalled-composer-attach:hover:not(:disabled) {
+  background: #30533b;
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.message-composer .socalled-composer-attach:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ==========================================
+   POPRAWKA UKŁADU WIADOMOŚCI
+   ========================================== */
+
+.message-row .message-body {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Zdjęcie, podpis i reakcje należą
+   do tej samej wiadomości. */
+
+.message-row .message-body > .socalled-chat-image-button {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin-left: 0;
+  margin-right: auto;
+}
+
+/* Nasze wiadomości wyrównujemy do prawej. */
+
+.message-row--mine .message-body > .socalled-chat-image-button {
+  align-self: flex-end;
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.message-row--mine .message-body > .socalled-reply-quote {
+  align-self: flex-end;
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.message-row--mine .message-body > .message-bubble {
+  align-self: flex-end;
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.message-row--mine .message-body > .socalled-message-social {
+  align-self: flex-end;
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.message-row--mine .message-body > .socalled-reaction-picker {
+  align-self: flex-end;
+  margin-left: auto;
+  margin-right: 0;
+}
+
+/* ==========================================
+   ZDJĘCIE W WIADOMOŚCI
+   ========================================== */
+
+/* Bardziej szczegółowy selektor zapobiega
+   dziedziczeniu szerokości innych przycisków. */
+
+.chat-panel .message-list .message-row .message-body
+  > button.socalled-chat-image-button {
+  display: flex;
+  flex-direction: column;
+
+  position: relative;
+
+  flex-grow: 0;
+  flex-shrink: 0;
+
+  width: max-content;
+  min-width: 0;
+  max-width: min(360px, 100%);
+
+  height: auto;
+  min-height: 0;
+
+  padding: 0;
+  overflow: hidden;
+
+  border: 1px solid #466b53;
+  border-radius: 15px;
+
+  background: #172f20;
+  color: #e4f5e8;
+
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.12);
+
+  cursor: zoom-in;
+
+  transition:
+    border-color 0.2s,
+    filter 0.2s,
+    transform 0.2s;
+}
+
+.chat-panel .message-list .message-row .message-body
+  > button.socalled-chat-image-button:hover {
+  border-color: var(--accent);
+  filter: brightness(1.06);
+}
+
+/* Obraz zajmuje tyle miejsca, ile potrzebuje.
+   Nie rozciąga się na cały czat. */
+
+.chat-panel .message-list .message-row .message-body
+  > button.socalled-chat-image-button > img {
+  display: block;
+
+  width: auto;
+  height: auto;
+
+  max-width: 100%;
+  max-height: 320px;
+
+  object-fit: contain;
+
+  border: none;
+  border-radius: 0;
+}
+
+/* ==========================================
+   NAPIS "POWIĘKSZ"
+   ========================================== */
+
+.socalled-image-zoom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  position: absolute;
+  inset: auto 0 0;
+
+  padding: 10px;
+
+  background: linear-gradient(
+    transparent,
+    rgba(0, 0, 0, 0.8)
+  );
+
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 650;
+
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.socalled-chat-image-button:hover .socalled-image-zoom,
+.socalled-chat-image-button:focus-visible .socalled-image-zoom {
+  opacity: 1;
+}
+
+/* ==========================================
+   ODSTĘPY MIĘDZY ZDJĘCIEM A PODPISEM
+   ========================================== */
+
+.message-body > .socalled-chat-image-button + .message-bubble {
+  margin-top: 3px;
+}
+
+.message-body > .socalled-chat-image-button + .message-edit-form {
+  margin-top: 5px;
+}
+
+.message-body > .socalled-chat-image-button + .socalled-message-social {
+  margin-top: 8px;
+}
+
+/* ==========================================
+   PODGLĄD ZDJĘCIA PRZED WYSŁANIEM
+   ========================================== */
+
+.socalled-image-attachment {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+
+  width: 100%;
+  min-width: 0;
+
+  padding: 12px 17px;
+
+  border-top: 1px solid #426e51;
+  background: #193626;
+}
+
+.socalled-attachment-thumbnail {
+  flex: 0 0 65px;
+
+  width: 65px;
+  height: 65px;
+
+  overflow: hidden;
+
+  border: 1px solid #567b60;
+  border-radius: 11px;
+
+  background: #102719;
+}
+
+.socalled-attachment-thumbnail img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.socalled-attachment-info {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+
+  flex: 1;
+  min-width: 0;
+}
+
+.socalled-attachment-info strong {
+  color: #e4f5e8;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.socalled-attachment-info span {
+  color: #aac7b3;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.socalled-attachment-remove {
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  width: 32px;
+  height: 32px;
+
+  padding: 0;
+
+  border: 1px solid #735553;
+  border-radius: 9px;
+
+  background: #3a2928;
+  color: #f0b8b4;
+
+  cursor: pointer;
+}
+
+.socalled-attachment-remove:hover {
+  background: #543331;
+}
+
+/* ==========================================
+   PRZYGOTOWYWANIE ZDJĘCIA
+   ========================================== */
+
+.socalled-image-processing {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  padding: 10px 18px;
+
+  border-top: 1px solid #395f45;
+  background: #1c3928;
+
+  color: #c8dfce;
+  font-size: 12px;
+}
+
+.socalled-image-processing svg {
+  color: var(--accent);
+}
+
+/* ==========================================
+   BŁĘDY PRZESYŁANIA
+   ========================================== */
+
+.socalled-image-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  padding: 10px 16px;
+
+  border-top: 1px solid #80514b;
+
+  background: #3c2926;
+  color: #ffc9c2;
+
+  font-size: 12px;
+}
+
+.socalled-image-error button {
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  width: 27px;
+  height: 27px;
+
+  padding: 0;
+
+  border: none;
+  background: transparent;
+  color: #ffc9c2;
+
+  cursor: pointer;
+}
+
+/* ==========================================
+   POWIĘKSZENIE ZDJĘCIA
+   ========================================== */
+
+.socalled-image-lightbox {
+  position: fixed;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  z-index: 9999;
+
+  padding: 20px;
+
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: blur(8px);
+}
+
+.socalled-lightbox-content {
+  display: flex;
+  flex-direction: column;
+
+  width: fit-content;
+  max-width: 100%;
+  max-height: 95dvh;
+
+  overflow: hidden;
+
+  border: 1px solid #45624e;
+  border-radius: 16px;
+
+  background: #102018;
+
+  box-shadow: 0 25px 70px #0008;
+}
+
+.socalled-lightbox-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+
+  min-height: 52px;
+  padding: 10px 14px;
+
+  background: #193425;
+
+  color: #e4f3e8;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.socalled-lightbox-header button {
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  width: 33px;
+  height: 33px;
+
+  padding: 0;
+
+  border: 1px solid #4b6f56;
+  border-radius: 9px;
+
+  background: #284833;
+  color: #e9f6ec;
+
+  cursor: pointer;
+}
+
+.socalled-lightbox-header button:hover {
+  border-color: var(--accent);
+}
+
+.socalled-lightbox-content > img {
+  display: block;
+
+  width: auto;
+  height: auto;
+
+  max-width: min(960px, 90vw);
+  max-height: calc(95dvh - 65px);
+
+  object-fit: contain;
+}
+
+/* ==========================================
+   TELEFONY
+   ========================================== */
+
+@media (max-width: 850px) {
+  .message-composer .socalled-composer-attach {
+    flex-basis: 34px;
+
+    width: 34px;
+    height: 36px;
+
+    margin-right: 3px;
+  }
+
+  .chat-panel .message-list .message-row .message-body
+    > button.socalled-chat-image-button {
+    max-width: min(290px, 100%);
+    border-radius: 13px;
+  }
+
+  .chat-panel .message-list .message-row .message-body
+    > button.socalled-chat-image-button > img {
+    max-height: 290px;
+  }
+
+  .socalled-image-zoom {
+    opacity: 1;
+  }
+
+  .socalled-image-attachment {
+    gap: 10px;
+    padding: 10px 13px;
+  }
+
+  .socalled-attachment-thumbnail {
+    flex-basis: 58px;
+
+    width: 58px;
+    height: 58px;
+  }
+
+  .socalled-attachment-info strong {
+    font-size: 11px;
+  }
+
+  .socalled-attachment-info span {
+    font-size: 10px;
+  }
+
+  .socalled-image-lightbox {
+    padding: 9px;
+  }
+
+  .socalled-lightbox-content {
+    max-height: 94dvh;
+    border-radius: 12px;
+  }
+
+  .socalled-lightbox-content > img {
+    max-width: calc(100vw - 20px);
+    max-height: calc(94dvh - 65px);
+  }
+}
+
+@media (max-width: 360px) {
+  .chat-panel .message-list .message-row .message-body
+    > button.socalled-chat-image-button {
+    max-width: min(245px, 100%);
+  }
+
+  .socalled-attachment-info span {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .socalled-chat-image-button,
+  .socalled-image-zoom,
+  .socalled-composer-attach {
+    transition: none;
+  }
+}

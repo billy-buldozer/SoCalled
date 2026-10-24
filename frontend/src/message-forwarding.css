@@ -1,0 +1,375 @@
+
+/* ==========================================
+   SOCALLED v0.9
+   PRZEKAZYWANIE I POBIERANIE ZDJĘĆ
+   ========================================== */
+
+/* ==========================================
+   OZNACZENIE PRZEKAZANEJ WIADOMOŚCI
+   ========================================== */
+
+.socalled-forwarded-origin {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+
+  width: fit-content;
+  max-width: 100%;
+
+  margin: 5px 0 10px;
+  padding: 10px 12px;
+
+  border: 1px solid #42654b;
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+
+  background: #1a3625;
+  color: #c9e2d0;
+}
+
+.socalled-forwarded-origin > svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: var(--accent);
+}
+
+.socalled-forwarded-origin > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+
+  min-width: 0;
+}
+
+.socalled-forwarded-origin span {
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.socalled-forwarded-origin strong {
+  color: var(--accent);
+  font-weight: 750;
+}
+
+.socalled-forwarded-origin small {
+  color: #9fbbaa;
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* Własne przekazane wiadomości są po prawej. */
+
+.message-row--mine .message-body
+  > .socalled-forwarded-origin {
+  align-self: flex-end;
+  margin-left: auto;
+  margin-right: 0;
+}
+
+/* ==========================================
+   LICZNIK WIADOMOŚCI NA HEKSAGONACH
+   ========================================== */
+
+.hex-slot {
+  position: relative;
+}
+
+.socalled-hex-unread {
+  position: absolute;
+  top: 0;
+  right: 3px;
+
+  display: grid;
+  place-items: center;
+
+  min-width: 21px;
+  height: 21px;
+  padding: 0 4px;
+
+  border: 2px solid #0b1d11;
+  border-radius: 11px;
+
+  background: var(--accent);
+  color: #092417;
+
+  font-size: 10px;
+  font-weight: 800;
+
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* ==========================================
+   POWIADOMIENIE O PRZEKAZANIU
+   ========================================== */
+
+.socalled-forward-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  padding: 10px 16px;
+
+  border-top: 1px solid #437653;
+  background: #1b402a;
+
+  color: #d1f4da;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.socalled-forward-notice > svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.socalled-forward-notice > span {
+  min-width: 0;
+  flex: 1;
+}
+
+.socalled-forward-notice strong {
+  color: var(--accent);
+}
+
+.socalled-forward-notice button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 7px 10px;
+
+  border: 1px solid #5b9b70;
+  border-radius: 8px;
+
+  background: #285b3a;
+  color: #e2f9e7;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.socalled-forward-notice button:hover {
+  border-color: var(--accent);
+}
+
+.socalled-forward-notice
+  .socalled-notice-close {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+
+  padding: 0;
+
+  border: none;
+  background: transparent;
+}
+
+/* ==========================================
+   OKNO PRZEKAZYWANIA
+   ========================================== */
+
+.socalled-forward-modal {
+  width: min(460px, calc(100vw - 30px));
+  max-width: 100%;
+}
+
+.socalled-forward-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  width: 100%;
+  min-width: 0;
+
+  margin: 18px 0;
+  padding: 13px;
+
+  border: 1px solid #42614c;
+  border-radius: 12px;
+
+  background: #152e20;
+}
+
+.socalled-forward-preview-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.socalled-forward-preview-top strong {
+  overflow-wrap: anywhere;
+}
+
+.socalled-forward-preview img {
+  display: block;
+
+  width: auto;
+  max-width: min(220px, 100%);
+  max-height: 150px;
+
+  border: 1px solid #43684c;
+  border-radius: 10px;
+
+  object-fit: contain;
+}
+
+.socalled-forward-preview p {
+  margin: 0;
+
+  color: #d6e8dc;
+  font-size: 12px;
+  line-height: 1.6;
+
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+
+  max-height: 110px;
+  overflow-y: auto;
+}
+
+/* ==========================================
+   WYBÓR POKOJU
+   ========================================== */
+
+.socalled-forward-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  width: 100%;
+  min-width: 0;
+}
+
+.socalled-forward-form label {
+  color: #d3e9d9;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.socalled-forward-form select {
+  display: block;
+
+  width: 100%;
+  min-width: 0;
+  min-height: 45px;
+
+  padding: 10px 12px;
+
+  border: 1px solid #4b7758;
+  border-radius: 10px;
+
+  outline: none;
+
+  background: #142c1e;
+  color: #e7f6ea;
+
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.socalled-forward-form select:focus {
+  border-color: var(--accent);
+}
+
+.socalled-forward-form select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.socalled-forward-hint {
+  color: #c2d8c8;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.socalled-forward-form
+  .primary-button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 9px;
+
+  width: 100%;
+  min-height: 45px;
+
+  margin-top: 7px;
+}
+
+/* ==========================================
+   POBIERANIE ZDJĘCIA W LIGHTBOXIE
+   ========================================== */
+
+.socalled-lightbox-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.socalled-lightbox-header
+  .socalled-download-button {
+  display: grid;
+  place-items: center;
+
+  width: 33px;
+  height: 33px;
+
+  flex-shrink: 0;
+  padding: 0;
+
+  border: 1px solid #528463;
+  border-radius: 9px;
+
+  background: #28543a;
+  color: var(--accent);
+
+  cursor: pointer;
+}
+
+.socalled-lightbox-header
+  .socalled-download-button:hover {
+  border-color: var(--accent);
+  background: #356647;
+}
+
+/* ==========================================
+   TELEFONY
+   ========================================== */
+
+@media (max-width: 850px) {
+  .socalled-forwarded-origin {
+    padding: 8px 10px;
+    margin-bottom: 8px;
+  }
+
+  .socalled-forward-modal {
+    width: min(460px, calc(100vw - 22px));
+    max-height: 90dvh;
+    overflow-y: auto;
+  }
+
+  .socalled-forward-form select {
+    font-size: 16px;
+  }
+
+  .socalled-forward-preview {
+    padding: 11px;
+  }
+
+  .socalled-forward-notice {
+    flex-wrap: wrap;
+    gap: 7px;
+    padding: 10px 12px;
+  }
+
+  .socalled-forward-notice button {
+    min-height: 34px;
+  }
+}
