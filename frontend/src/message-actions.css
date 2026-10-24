@@ -1,0 +1,305 @@
+
+/* ==========================================
+   SOCALLED — MESSAGE ACTIONS
+   Edycja i usuwanie wiadomości
+   ========================================== */
+
+/* Oznaczenie edytowanej wiadomości */
+
+.message-edited {
+  color: #8da993;
+  font-size: 10px;
+  font-style: italic;
+  white-space: nowrap;
+}
+
+/* ==========================================
+   PRZYCISK TRZECH KROPEK
+   ========================================== */
+
+.message-actions {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.message-actions-trigger {
+  display: grid;
+  place-items: center;
+
+  width: 29px;
+  height: 27px;
+
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+
+  background: transparent;
+  color: #a1bdaa;
+
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    color 0.2s;
+}
+
+.message-actions-trigger:hover,
+.message-actions-trigger:focus-visible {
+  background: #254a32;
+  border-color: #40694c;
+  color: var(--accent);
+}
+
+/* ==========================================
+   ROZWIJANE MENU WIADOMOŚCI
+   ========================================== */
+
+.message-actions-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 7px);
+
+  z-index: 50;
+
+  width: 185px;
+  padding: 6px;
+
+  border: 1px solid #3b5d45;
+  border-radius: 12px;
+
+  background: #14291c;
+  box-shadow: 0 12px 35px #0008;
+}
+
+.message-actions-menu button {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+
+  width: 100%;
+  padding: 12px 11px;
+
+  border: none;
+  border-radius: 8px;
+
+  background: transparent;
+  color: #e5f3e9;
+
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+
+  transition: background 0.18s;
+}
+
+.message-actions-menu button:hover {
+  background: #244631;
+}
+
+.message-actions-menu button svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.message-actions-menu .delete-action {
+  color: #efaaa5;
+}
+
+.message-actions-menu .delete-action svg {
+  color: #e98881;
+}
+
+.message-actions-menu .delete-action:hover {
+  background: #422827;
+}
+
+/* ==========================================
+   EDYTOR WIADOMOŚCI
+   ========================================== */
+
+.message-edit-form {
+  width: min(440px, 100%);
+  min-width: 0;
+
+  padding: 12px;
+
+  border: 1px solid #3f7954;
+  border-radius: 13px;
+
+  background: #183624;
+}
+
+.message-edit-form textarea {
+  display: block;
+
+  width: 100%;
+  min-height: 95px;
+
+  padding: 12px;
+
+  border: 1px solid #45634d;
+  border-radius: 9px;
+
+  outline: none;
+  resize: vertical;
+
+  background: #102419;
+  color: #eaf5ee;
+
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.message-edit-form textarea:focus {
+  border-color: var(--accent);
+}
+
+.message-edit-controls {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+
+  margin-top: 12px;
+}
+
+.message-edit-controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  padding: 9px 12px;
+
+  border: 1px solid transparent;
+  border-radius: 9px;
+
+  font-size: 12px;
+  font-weight: 700;
+
+  transition: filter 0.2s;
+}
+
+.message-edit-controls button:hover:not(:disabled) {
+  filter: brightness(1.13);
+}
+
+.message-edit-controls .edit-cancel {
+  border-color: #42634d;
+  background: #243c2b;
+  color: #cfdfd3;
+}
+
+.message-edit-controls .edit-save {
+  background: var(--accent);
+  color: #092216;
+}
+
+.message-edit-controls button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ==========================================
+   INFORMACJE I BŁĘDY
+   ========================================== */
+
+.message-operation-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  padding: 10px 20px;
+
+  border-top: 1px solid #75413d;
+  background: #392321;
+
+  color: #ffccc6;
+  font-size: 12px;
+}
+
+.message-operation-error button {
+  display: grid;
+  place-items: center;
+
+  border: none;
+  background: transparent;
+  color: #ffccc6;
+}
+
+.connection-warning {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+
+  padding: 10px 14px;
+
+  background: #35291a;
+  color: #f0cda6;
+
+  font-size: 12px;
+  text-align: center;
+}
+
+.connection-warning button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+
+  padding: 6px 10px;
+
+  border: 1px solid #96724b;
+  border-radius: 8px;
+
+  background: #493522;
+  color: #f0cda6;
+}
+
+/* ==========================================
+   RESPONSYWNOŚĆ
+   ========================================== */
+
+.message-row .message-body {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.message-meta {
+  flex-wrap: wrap;
+}
+
+.message-edit-form {
+  max-width: 100%;
+}
+
+@media (max-width: 850px) {
+  .message-actions-trigger {
+    width: 34px;
+    height: 32px;
+  }
+
+  .message-actions-menu {
+    width: 175px;
+  }
+
+  .message-actions-menu button {
+    padding: 13px 11px;
+  }
+
+  .message-edit-form {
+    width: 100%;
+    padding: 10px;
+  }
+
+  .message-edit-controls button {
+    padding: 10px;
+  }
+
+  .message-operation-error {
+    padding: 10px 13px;
+  }
+}

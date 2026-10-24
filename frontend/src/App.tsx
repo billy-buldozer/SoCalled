@@ -17,8 +17,10 @@ import {
   Info,
   LockKeyhole,
   MessageCircle,
+  MoreHorizontal,
   Music2,
   Palette,
+  Pencil,
   Plus,
   RefreshCw,
   Search,
@@ -26,15 +28,17 @@ import {
   Settings2,
   ShieldCheck,
   Sparkles,
+  Trash2,
   Users,
   WifiOff,
   X,
 } from "lucide-react";
 
 import "./App.css";
+import "./message-actions.css";
 
 // ==========================================
-// TYPY DANYCH
+// TYPY
 // ==========================================
 
 type RoomIcon =
@@ -71,6 +75,7 @@ type ChatMessage = {
   time: string;
   text: string;
   mine: boolean;
+  editedAt: string | null;
 };
 
 type ServerMessage = {
@@ -80,10 +85,11 @@ type ServerMessage = {
   author: string;
   time: string;
   text: string;
+  editedAt?: string | null;
 };
 
 // ==========================================
-// POKOJE DEMONSTRACYJNE
+// POKOJE
 // ==========================================
 
 const initialRooms: Room[] = [
@@ -208,7 +214,7 @@ const themeOptions = [
 type ThemeId = (typeof themeOptions)[number]["id"];
 
 // ==========================================
-// USTAWIENIA WEBSOCKET
+// WEBSOCKET
 // ==========================================
 
 const RECONNECT_DELAY = 2000;
@@ -242,6 +248,17 @@ function RoomGlyph({ icon }: { icon: RoomIcon }) {
 }
 
 // ==========================================
+// FORMATOWANIE CZASU
+// ==========================================
+
+function formatMessageTime(value: string): string {
+  return new Date(value).toLocaleTimeString("pl-PL", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+// ==========================================
 // GŁÓWNA APLIKACJA
 // ==========================================
 
@@ -266,15 +283,35 @@ function App() {
   const [themeId, setThemeId] = useState<ThemeId>("emerald");
   const [notifications, setNotifications] = useState(true);
 
+  // ========================================
+  // WEBSOCKET
+  // ========================================
+
   const [socketStatus, setSocketStatus] =
     useState<SocketStatus>("connecting");
 
-  // Pozwala wymusić nowe połączenie także wtedy,
-  // gdy identyfikator pokoju się nie zmienia.
-  const [connectionVersion, setConnectionVersion] = useState(0);
+  const [connectionVersion, setConnectionVersion] =
+    useState(0);
 
   const socketRef = useRef<WebSocket | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
+
+  // ========================================
+  // EDYCJA I USUWANIE
+  // ========================================
+
+  const [actionMenuId, setActionMenuId] =
+    useState<string | null>(null);
+
+  const [editingId, setEditingId] =
+    useState<string | null>(null);
+
+  const [editingText, setEditingText] = useState("");
+
+  const [pendingEditId, setPendingEditId] =
+    useState<string | null>(null);
+
+  const [actionError, setActionError] = useState("");
 
   // ========================================
   // TYMCZASOWA TOŻSAMOŚĆ
@@ -282,7 +319,6 @@ function App() {
 
   const [clientId] = useState(() => {
     const saved = sessionStorage.getItem("socalled_client_id");
-
     if (saved) return saved;
 
     const generated =
@@ -297,7 +333,6 @@ function App() {
 
   const [nickname] = useState(() => {
     const saved = sessionStorage.getItem("socalled_nickname");
-
     if (saved) return saved;
 
     const generated =
@@ -309,7 +344,7 @@ function App() {
   });
 
   // ========================================
-  // AKTUALNY POKÓJ I WIADOMOŚCI
+  // DANE AKTUALNEGO POKOJU
   // ========================================
 
   const activeRoom =
@@ -339,7 +374,7 @@ function App() {
   );
 
   // ========================================
-  // RĘCZNE WYMUSZENIE POŁĄCZENIA
+  // WYMUŚ PONOWNE POŁĄCZENIE
   // ========================================
 
   function reconnectNow() {
@@ -348,7 +383,7 @@ function App() {
   }
 
   // ========================================
-  // WEBSOCKET
+  // WEBSOCKET — POŁĄCZENIE
   // ========================================
 
   useEffect(() => {
@@ -365,8 +400,8 @@ function App() {
       nickname,
     });
 
-    // Lokalny dostęp z komputera i telefonu.
-    // Backend musi działać na 0.0.0.0:8000.
+    // Podczas lokalnych testów łączymy się
+    // bezpośrednio z FastAPI na porcie 8000.
     const protocol =
       window.location.protocol === "https:" ? "wss" : "ws";
 
@@ -382,20 +417,36 @@ function App() {
         id: message.id,
         roomId: message.roomId,
         author: message.author,
+        time: formatMessageTime(message.time),
         text: message.text,
-        time: new Date(message.time).toLocaleTimeString(
-          "pl-PL",
-          {
-            hour: "2-digit",
-            minute: "2-digit",
-          }
-        ),
         mine: message.clientId === clientId,
+        editedAt: message.editedAt ?? null,
       };
     }
 
+    // Aktualizuje podgląd ostatniej wiadomości.
+    function updateRoomPreview(
+      latest: ServerMessage | null
+    ) {
+      setRooms((previous) =>
+        previous.map((room) =>
+          room.id === activeRoomId
+            ? {
+                ...room,
+                lastMessage:
+                  latest?.text ?? "Brak wiadomości",
+                lastTime:
+                  latest
+                    ? formatMessageTime(latest.time)
+                    : "—",
+              }
+            : room
+        )
+      );
+    }
+
     // ======================================
-    // TIMERY
+    // CZYSZCZENIE TIMERÓW
     // ======================================
 
     function clearConnectionTimers() {
@@ -460,21 +511,18 @@ function App() {
             currentSocket === socket &&
             socket.readyState === WebSocket.OPEN
           ) {
-            console.warn(
-              "[SoCalled] Brak odpowiedzi PONG."
-            );
-
+            console.warn("[SoCalled] Brak odpowiedzi PONG");
             socket.close(4000, "Heartbeat timeout");
           }
         }, HEARTBEAT_TIMEOUT);
       } catch (error) {
-        console.error("[SoCalled] Błąd heartbeat:", error);
+        console.error("[SoCalled] Heartbeat:", error);
         socket.close();
       }
     }
 
     // ======================================
-    // NAWIĄZANIE POŁĄCZENIA
+    // NAWIĄZYWANIE POŁĄCZENIA
     // ======================================
 
     function connect() {
@@ -493,18 +541,12 @@ function App() {
 
       setSocketStatus("connecting");
 
-      console.log("[SoCalled] Łączenie:", url);
-
       let socket: WebSocket;
 
       try {
         socket = new WebSocket(url);
       } catch (error) {
-        console.error(
-          "[SoCalled] Nie udało się utworzyć WebSocket:",
-          error
-        );
-
+        console.error("[SoCalled] WebSocket:", error);
         setSocketStatus("offline");
         scheduleReconnect();
         return;
@@ -513,17 +555,12 @@ function App() {
       currentSocket = socket;
       socketRef.current = socket;
 
-      // Maksymalnie 10 sekund na otwarcie połączenia.
       connectTimer = window.setTimeout(() => {
         if (
           !disposed &&
           currentSocket === socket &&
           socket.readyState === WebSocket.CONNECTING
         ) {
-          console.warn(
-            "[SoCalled] Przekroczono czas połączenia."
-          );
-
           socket.close();
         }
       }, CONNECT_TIMEOUT);
@@ -543,11 +580,10 @@ function App() {
         setSocketStatus("online");
 
         console.log(
-          "[SoCalled] Połączono:",
+          "[SoCalled] Połączono z pokojem:",
           activeRoomId
         );
 
-        // Sprawdzamy połączenie od razu.
         sendPing(socket);
 
         heartbeatTimer = window.setInterval(() => {
@@ -556,7 +592,7 @@ function App() {
       };
 
       // ====================================
-      // ZDARZENIA Z SERWERA
+      // ODBIERANIE ZDARZEŃ
       // ====================================
 
       socket.onmessage = (event) => {
@@ -565,17 +601,16 @@ function App() {
         try {
           const data = JSON.parse(event.data);
 
-          // Odpowiedź heartbeat
+          // HEARTBEAT
           if (data.type === "pong") {
             if (pongTimer !== undefined) {
               window.clearTimeout(pongTimer);
               pongTimer = undefined;
             }
-
             return;
           }
 
-          // Historia wiadomości
+          // HISTORIA WIADOMOŚCI
           if (
             data.type === "history" &&
             Array.isArray(data.messages)
@@ -591,34 +626,26 @@ function App() {
               ...history,
             ]);
 
-            const lastMessage =
-              history[history.length - 1];
+            const latest =
+              data.messages.length > 0
+                ? (data.messages[
+                    data.messages.length - 1
+                  ] as ServerMessage)
+                : null;
 
-            setRooms((previous) =>
-              previous.map((room) =>
-                room.id === activeRoomId
-                  ? {
-                      ...room,
-                      lastMessage:
-                        lastMessage?.text ?? "Brak wiadomości",
-                      lastTime:
-                        lastMessage?.time ?? "—",
-                    }
-                  : room
-              )
-            );
-
+            updateRoomPreview(latest);
             return;
           }
 
-          // Nowa wiadomość
+          // NOWA WIADOMOŚĆ
           if (
             data.type === "message_created" &&
             data.message
           ) {
-            const message = convertMessage(
-              data.message as ServerMessage
-            );
+            const serverMessage =
+              data.message as ServerMessage;
+
+            const message = convertMessage(serverMessage);
 
             setMessages((previous) => {
               if (
@@ -632,44 +659,110 @@ function App() {
               return [...previous, message];
             });
 
-            setRooms((previous) =>
-              previous.map((room) =>
-                room.id === activeRoomId
-                  ? {
-                      ...room,
-                      lastMessage: message.text,
-                      lastTime: message.time,
-                    }
-                  : room
-              )
-            );
-
+            updateRoomPreview(serverMessage);
             return;
           }
 
-          if (data.type === "error") {
-            console.warn(
-              "[SoCalled] Błąd serwera:",
-              data.message
+          // =================================
+          // WIADOMOŚĆ ZOSTAŁA EDYTOWANA
+          // =================================
+
+          if (
+            data.type === "message_updated" &&
+            data.message
+          ) {
+            const updated = convertMessage(
+              data.message as ServerMessage
             );
+
+            setMessages((previous) =>
+              previous.map((message) =>
+                message.id === updated.id
+                  ? updated
+                  : message
+              )
+            );
+
+            updateRoomPreview(
+              (data.lastMessage as ServerMessage | null) ??
+                null
+            );
+
+            setEditingId((current) =>
+              current === updated.id ? null : current
+            );
+
+            setPendingEditId((current) =>
+              current === updated.id ? null : current
+            );
+
+            setActionMenuId(null);
+            setActionError("");
+            return;
+          }
+
+          // =================================
+          // WIADOMOŚĆ ZOSTAŁA USUNIĘTA
+          // =================================
+
+          if (
+            data.type === "message_deleted" &&
+            typeof data.messageId === "string"
+          ) {
+            const removedId = data.messageId as string;
+
+            setMessages((previous) =>
+              previous.filter(
+                (message) => message.id !== removedId
+              )
+            );
+
+            updateRoomPreview(
+              (data.lastMessage as ServerMessage | null) ??
+                null
+            );
+
+            setEditingId((current) =>
+              current === removedId ? null : current
+            );
+
+            setPendingEditId((current) =>
+              current === removedId ? null : current
+            );
+
+            setActionMenuId(null);
+            setActionError("");
+            return;
+          }
+
+          // BŁĄD SERWERA
+          if (data.type === "error") {
+            const message =
+              typeof data.message === "string"
+                ? data.message
+                : "Nie udało się wykonać operacji.";
+
+            console.warn("[SoCalled]", message);
+
+            setActionError(message);
+            setPendingEditId(null);
           }
         } catch (error) {
           console.error(
-            "[SoCalled] Błąd przetwarzania wiadomości:",
+            "[SoCalled] Błąd wiadomości:",
             error
           );
         }
       };
 
       // ====================================
-      // ZAMKNIĘCIE POŁĄCZENIA
+      // ROZŁĄCZENIE
       // ====================================
 
       socket.onclose = (event) => {
         if (disposed || currentSocket !== socket) return;
 
         clearConnectionTimers();
-
         currentSocket = null;
 
         if (socketRef.current === socket) {
@@ -677,6 +770,7 @@ function App() {
         }
 
         setSocketStatus("offline");
+        setPendingEditId(null);
 
         console.warn(
           "[SoCalled] Rozłączono:",
@@ -691,14 +785,14 @@ function App() {
         if (disposed || currentSocket !== socket) return;
 
         console.warn(
-          "[SoCalled] Błąd WebSocket:",
+          "[SoCalled] Problem z WebSocket:",
           url
         );
       };
     }
 
     // ======================================
-    // POWRÓT DO PRZEGLĄDARKI
+    // WZNOWIENIE POŁĄCZENIA
     // ======================================
 
     function checkConnection() {
@@ -718,12 +812,9 @@ function App() {
       }
 
       if (socket.readyState === WebSocket.CONNECTING) {
-        // Istnieje już timeout połączenia.
         return;
       }
 
-      // CLOSED albo CLOSING.
-      // Nie czekamy na przejście między pokojami.
       currentSocket = null;
 
       if (socketRef.current === socket) {
@@ -749,12 +840,8 @@ function App() {
     window.addEventListener("pageshow", checkConnection);
     window.addEventListener("online", checkConnection);
 
-    // AUTOMATYCZNE POŁĄCZENIE PO STARCIE
+    // Połączenie przy starcie
     connect();
-
-    // ======================================
-    // SPRZĄTANIE
-    // ======================================
 
     return () => {
       disposed = true;
@@ -777,12 +864,7 @@ function App() {
 
       socketRef.current = null;
     };
-  }, [
-    activeRoomId,
-    clientId,
-    nickname,
-    connectionVersion,
-  ]);
+  }, [activeRoomId, clientId, nickname, connectionVersion]);
 
   // ========================================
   // PRZEWIJANIE CZATU
@@ -796,13 +878,18 @@ function App() {
   }, [activeRoomId, messages, mobileScreen]);
 
   // ========================================
-  // OTWIERANIE POKOJU
+  // ZMIANA POKOJU
   // ========================================
 
   function openRoom(roomId: string) {
     setMobileScreen("chat");
     setDetailsTab("about");
     setDraft("");
+
+    setActionMenuId(null);
+    setEditingId(null);
+    setPendingEditId(null);
+    setActionError("");
 
     setRooms((previous) =>
       previous.map((room) =>
@@ -813,15 +900,11 @@ function App() {
     );
 
     if (roomId !== activeRoomId) {
-      // Zmiana pokoju uruchamia nowy WebSocket.
       setSocketStatus("connecting");
       setActiveRoomId(roomId);
       return;
     }
 
-    // Kluczowa poprawka:
-    // kliknięcie tego samego pokoju również
-    // może odtworzyć utracone połączenie.
     if (
       socketStatus !== "online" ||
       socketRef.current?.readyState !== WebSocket.OPEN
@@ -847,10 +930,6 @@ function App() {
       socket.readyState !== WebSocket.OPEN ||
       socketStatus !== "online"
     ) {
-      console.warn(
-        "[SoCalled] Brak aktywnego połączenia."
-      );
-
       reconnectNow();
       return;
     }
@@ -865,12 +944,145 @@ function App() {
 
       setDraft("");
     } catch (error) {
-      console.error(
-        "[SoCalled] Nie udało się wysłać wiadomości:",
-        error
+      console.error("[SoCalled] Wysyłanie:", error);
+      reconnectNow();
+    }
+  }
+
+  // ========================================
+  // MENU WIADOMOŚCI
+  // ========================================
+
+  function toggleMessageMenu(messageId: string) {
+    setActionMenuId((current) =>
+      current === messageId ? null : messageId
+    );
+
+    setActionError("");
+  }
+
+  // ========================================
+  // ROZPOCZĘCIE EDYCJI
+  // ========================================
+
+  function startMessageEdit(message: ChatMessage) {
+    if (!message.mine) return;
+
+    setEditingId(message.id);
+    setEditingText(message.text);
+    setActionMenuId(null);
+    setActionError("");
+  }
+
+  // ========================================
+  // ANULOWANIE EDYCJI
+  // ========================================
+
+  function cancelMessageEdit() {
+    if (pendingEditId) return;
+
+    setEditingId(null);
+    setEditingText("");
+    setActionError("");
+  }
+
+  // ========================================
+  // ZAPIS EDYTOWANEJ WIADOMOŚCI
+  // ========================================
+
+  function saveMessageEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!editingId || pendingEditId) return;
+
+    const text = editingText.trim();
+    const socket = socketRef.current;
+
+    if (!text || text.length > 2000) {
+      setActionError(
+        "Wiadomość musi mieć od 1 do 2000 znaków."
+      );
+      return;
+    }
+
+    const original = messages.find(
+      (message) => message.id === editingId
+    );
+
+    if (!original || !original.mine) return;
+
+    if (original.text === text) {
+      cancelMessageEdit();
+      return;
+    }
+
+    if (
+      !socket ||
+      socket.readyState !== WebSocket.OPEN ||
+      socketStatus !== "online"
+    ) {
+      setActionError("Brak połączenia z serwerem.");
+      reconnectNow();
+      return;
+    }
+
+    try {
+      socket.send(
+        JSON.stringify({
+          type: "edit_message",
+          message_id: editingId,
+          text,
+        })
       );
 
+      setPendingEditId(editingId);
+      setActionError("");
+    } catch (error) {
+      console.error("[SoCalled] Edycja:", error);
+      setActionError("Nie udało się wysłać zmiany.");
+    }
+  }
+
+  // ========================================
+  // USUWANIE WIADOMOŚCI
+  // ========================================
+
+  function deleteMessage(message: ChatMessage) {
+    if (!message.mine) return;
+
+    setActionMenuId(null);
+
+    const confirmed = window.confirm(
+      "Czy na pewno chcesz usunąć tę wiadomość?\n" +
+      "Zniknie ona również u pozostałych uczestników pokoju."
+    );
+
+    if (!confirmed) return;
+
+    const socket = socketRef.current;
+
+    if (
+      !socket ||
+      socket.readyState !== WebSocket.OPEN ||
+      socketStatus !== "online"
+    ) {
+      setActionError("Brak połączenia z serwerem.");
       reconnectNow();
+      return;
+    }
+
+    try {
+      socket.send(
+        JSON.stringify({
+          type: "delete_message",
+          message_id: message.id,
+        })
+      );
+
+      setActionError("");
+    } catch (error) {
+      console.error("[SoCalled] Usuwanie:", error);
+      setActionError("Nie udało się usunąć wiadomości.");
     }
   }
 
@@ -911,6 +1123,10 @@ function App() {
     setNewRoomName("");
     setNewRoomPrivate(false);
     setDraft("");
+
+    setEditingId(null);
+    setActionMenuId(null);
+    setActionError("");
   }
 
   // ========================================
@@ -939,7 +1155,6 @@ function App() {
             <div className="brand-name">
               So<span>Called</span>
             </div>
-
             <div className="brand-subtitle">
               YOUR SPACE. YOUR VOICE.
             </div>
@@ -948,9 +1163,7 @@ function App() {
 
         <div className="sidebar-section-title">
           <div>
-            <span className="eyebrow">
-              TWOJA PRZESTRZEŃ
-            </span>
+            <span className="eyebrow">TWOJA PRZESTRZEŃ</span>
             <h2>Pokoje</h2>
           </div>
 
@@ -1237,21 +1450,7 @@ function App() {
         {/* STATUS POŁĄCZENIA */}
 
         {socketStatus !== "online" && (
-          <div
-            role="status"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 10,
-              flexWrap: "wrap",
-              padding: "10px 14px",
-              background: "#35291a",
-              color: "#f0cda6",
-              fontSize: 12,
-              textAlign: "center",
-            }}
-          >
+          <div className="connection-warning" role="status">
             <WifiOff size={16} />
 
             <span>
@@ -1260,21 +1459,7 @@ function App() {
                 : "Połączenie przerwane. Ponawiam próbę..."}
             </span>
 
-            <button
-              type="button"
-              onClick={reconnectNow}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                padding: "6px 10px",
-                border: "1px solid #96724b",
-                borderRadius: 8,
-                background: "#493522",
-                color: "#f0cda6",
-                cursor: "pointer",
-              }}
-            >
+            <button type="button" onClick={reconnectNow}>
               <RefreshCw size={14} />
               Połącz ponownie
             </button>
@@ -1309,9 +1494,7 @@ function App() {
             {roomMessages.length === 0 ? (
               <div className="empty-messages">
                 <MessageCircle size={29} />
-
                 <h3>Jeszcze tu cicho.</h3>
-
                 <p>
                   Napisz pierwszą wiadomość w tym pokoju.
                 </p>
@@ -1338,17 +1521,132 @@ function App() {
                     <div className="message-meta">
                       <strong>{message.author}</strong>
                       <time>{message.time}</time>
+
+                      {message.editedAt && (
+                        <span className="message-edited">
+                          · edytowano
+                        </span>
+                      )}
+
+                      {/* MENU TYLKO WŁASNYCH WIADOMOŚCI */}
+
+                      {message.mine && (
+                        <div className="message-actions">
+                          <button
+                            type="button"
+                            className="message-actions-trigger"
+                            aria-label="Opcje wiadomości"
+                            aria-expanded={
+                              actionMenuId === message.id
+                            }
+                            onClick={() =>
+                              toggleMessageMenu(message.id)
+                            }
+                          >
+                            <MoreHorizontal size={19} />
+                          </button>
+
+                          {actionMenuId === message.id && (
+                            <div className="message-actions-menu">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  startMessageEdit(message)
+                                }
+                              >
+                                <Pencil size={16} />
+                                Edytuj
+                              </button>
+
+                              <button
+                                type="button"
+                                className="delete-action"
+                                onClick={() =>
+                                  deleteMessage(message)
+                                }
+                              >
+                                <Trash2 size={16} />
+                                Usuń
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
-                    <div className="message-bubble">
-                      {message.text}
-                    </div>
+                    {/* EDYTOWANIE LUB ZWYKŁA WIADOMOŚĆ */}
+
+                    {editingId === message.id ? (
+                      <form
+                        className="message-edit-form"
+                        onSubmit={saveMessageEdit}
+                      >
+                        <textarea
+                          value={editingText}
+                          onChange={(event) =>
+                            setEditingText(event.target.value)
+                          }
+                          maxLength={2000}
+                          rows={3}
+                          aria-label="Edytuj wiadomość"
+                          autoFocus
+                          disabled={pendingEditId === message.id}
+                        />
+
+                        <div className="message-edit-controls">
+                          <button
+                            type="button"
+                            className="edit-cancel"
+                            onClick={cancelMessageEdit}
+                            disabled={pendingEditId === message.id}
+                          >
+                            <X size={15} />
+                            Anuluj
+                          </button>
+
+                          <button
+                            type="submit"
+                            className="edit-save"
+                            disabled={
+                              !editingText.trim() ||
+                              pendingEditId === message.id ||
+                              socketStatus !== "online"
+                            }
+                          >
+                            <Check size={15} />
+                            {pendingEditId === message.id
+                              ? "Zapisywanie..."
+                              : "Zapisz"}
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <div className="message-bubble">
+                        {message.text}
+                      </div>
+                    )}
                   </div>
                 </article>
               ))
             )}
           </div>
         </div>
+
+        {/* KOMUNIKAT O BŁĘDZIE OPERACJI */}
+
+        {actionError && (
+          <div className="message-operation-error" role="alert">
+            <span>{actionError}</span>
+
+            <button
+              type="button"
+              onClick={() => setActionError("")}
+              aria-label="Zamknij komunikat"
+            >
+              <X size={17} />
+            </button>
+          </div>
+        )}
 
         {/* WYSYŁANIE WIADOMOŚCI */}
 
@@ -1443,9 +1741,7 @@ function App() {
             <button
               type="button"
               className={
-                detailsTab === "about"
-                  ? "tab-active"
-                  : ""
+                detailsTab === "about" ? "tab-active" : ""
               }
               onClick={() => setDetailsTab("about")}
             >
@@ -1455,9 +1751,7 @@ function App() {
             <button
               type="button"
               className={
-                detailsTab === "settings"
-                  ? "tab-active"
-                  : ""
+                detailsTab === "settings" ? "tab-active" : ""
               }
               onClick={() => setDetailsTab("settings")}
             >
@@ -1509,7 +1803,6 @@ function App() {
 
                     <div>
                       <strong>{name}</strong>
-
                       <span>
                         {index === 0
                           ? "Twój profil"
@@ -1524,11 +1817,10 @@ function App() {
 
               <div className="details-notice">
                 <ShieldCheck size={20} />
-
                 <p>
-                  Czat działa przez WebSocket.
-                  Członkostwo i uprawnienia dodamy
-                  w kolejnych etapach.
+                  Wiadomości można edytować i usuwać
+                  w czasie rzeczywistym. Prawdziwe konta
+                  i uprawnienia dodamy później.
                 </p>
               </div>
             </div>
@@ -1567,7 +1859,6 @@ function App() {
                           <Check size={16} />
                         )}
                       </span>
-
                       <span>{option.label}</span>
                     </button>
                   ))}
@@ -1581,9 +1872,7 @@ function App() {
                   type="button"
                   className="settings-row"
                   onClick={() =>
-                    setNotifications(
-                      (current) => !current
-                    )
+                    setNotifications((current) => !current)
                   }
                   aria-pressed={notifications}
                 >
@@ -1611,11 +1900,10 @@ function App() {
 
               <div className="details-notice">
                 <ShieldCheck size={20} />
-
                 <p>
-                  Personalizację pokojów, zmianę nazwy,
-                  zdjęcia i pseudonimy uczestników
-                  dodamy w kolejnych wersjach.
+                  Zmiana nazwy, zdjęcia pokoju
+                  i pseudonimów uczestników pojawi się
+                  w kolejnych wersjach SoCalled.
                 </p>
               </div>
             </div>

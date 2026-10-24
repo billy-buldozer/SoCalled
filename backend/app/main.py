@@ -12,7 +12,7 @@ app = FastAPI(title="SoCalled API")
 
 
 # ==========================================
-# STAN POKOJU
+# PAMIĘĆ I SYNCHRONIZACJA POKOJÓW
 # ==========================================
 
 @dataclass
@@ -34,8 +34,65 @@ async def get_room(room_id: str) -> RoomState:
         return rooms[room_id]
 
 
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
 # ==========================================
-# ENDPOINTY HTTP
+# ROZSYŁANIE ZDARZEŃ
+# ==========================================
+
+async def broadcast(
+    room: RoomState,
+    event: dict,
+) -> None:
+    """
+    Wywołujemy wewnątrz room.lock.
+
+    Dzięki temu zdarzenia z jednego pokoju
+    są wysyłane w tej samej kolejności.
+    """
+
+    disconnected = []
+
+    for client in tuple(room.connections):
+        try:
+            await client.send_json(event)
+
+        except (
+            RuntimeError,
+            OSError,
+            WebSocketDisconnect,
+        ):
+            disconnected.append(client)
+
+    for client in disconnected:
+        room.connections.discard(client)
+
+
+async def send_error(
+    websocket: WebSocket,
+    message: str,
+) -> None:
+    await websocket.send_json({
+        "type": "error",
+        "message": message,
+    })
+
+
+def find_message(
+    room: RoomState,
+    message_id: str,
+) -> dict | None:
+    for message in room.messages:
+        if message["id"] == message_id:
+            return message
+
+    return None
+
+
+# ==========================================
+# PODSTAWOWE ENDPOINTY
 # ==========================================
 
 @app.get("/")
@@ -53,7 +110,7 @@ def health():
 
 
 # ==========================================
-# WEBSOCKET — KOMUNIKACJA
+# WEBSOCKET
 # ==========================================
 
 @app.websocket("/ws/rooms/{room_id}")
@@ -61,7 +118,11 @@ async def room_websocket(
     websocket: WebSocket,
     room_id: str,
 ):
-    if not re.fullmatch(r"[a-zA-Z0-9_-]{1,80}", room_id):
+    # Identyfikator pokoju
+    if not re.fullmatch(
+        r"[a-zA-Z0-9_-]{1,80}",
+        room_id,
+    ):
         await websocket.close(code=1008)
         return
 
@@ -73,11 +134,13 @@ async def room_websocket(
         "client_id", ""
     ).strip()
 
+    # Tymczasowa identyfikacja użytkownika
     if (
         not nickname
         or len(nickname) > 32
         or not re.fullmatch(
-            r"[a-zA-Z0-9_-]{1,80}", client_id
+            r"[a-zA-Z0-9_-]{1,80}",
+            client_id,
         )
     ):
         await websocket.close(code=1008)
@@ -90,16 +153,26 @@ async def room_websocket(
     print(f"[CONNECT] {nickname} -> {room_id}")
 
     try:
-        # Pobranie historii i dołączenie do pokoju
+        # ==================================
+        # DOŁĄCZANIE I HISTORIA
+        # ==================================
+
         async with room.lock:
             await websocket.send_json({
                 "type": "history",
-                "messages": list(room.messages),
+                "messages": [
+                    dict(message)
+                    for message in room.messages
+                ],
             })
 
             room.connections.add(websocket)
 
         print(f"[JOIN] {nickname} -> {room_id}")
+
+        # ==================================
+        # GŁÓWNA PĘTLA WEBSOCKET
+        # ==================================
 
         while True:
             try:
@@ -113,7 +186,7 @@ async def room_websocket(
             event_type = payload.get("type")
 
             # ==================================
-            # HEARTBEAT — PING/PONG
+            # HEARTBEAT
             # ==================================
 
             if event_type == "ping":
@@ -125,7 +198,7 @@ async def room_websocket(
                 continue
 
             # ==================================
-            # NOWA WIADOMOŚĆ
+            # WYSYŁANIE WIADOMOŚCI
             # ==================================
 
             if event_type == "send_message":
@@ -138,14 +211,11 @@ async def room_websocket(
 
                 if not 1 <= len(text) <= 2000:
                     async with room.lock:
-                        await websocket.send_json({
-                            "type": "error",
-                            "message": (
-                                "Wiadomość musi mieć "
-                                "od 1 do 2000 znaków."
-                            ),
-                        })
-
+                        await send_error(
+                            websocket,
+                            "Wiadomość musi mieć od 1 "
+                            "do 2000 znaków.",
+                        )
                     continue
 
                 message = {
@@ -153,45 +223,163 @@ async def room_websocket(
                     "roomId": room_id,
                     "clientId": client_id,
                     "author": nickname,
-                    "time": datetime.now(
-                        timezone.utc
-                    ).isoformat(),
+                    "time": utc_now(),
+                    "editedAt": None,
                     "text": text,
                 }
 
-                event = {
-                    "type": "message_created",
-                    "message": message,
-                }
-
-                # Sekcja krytyczna pokoju
                 async with room.lock:
                     room.messages.append(message)
 
+                    # Limit historii prototypu
                     if len(room.messages) > 200:
                         del room.messages[:-200]
 
-                    disconnected = []
-
-                    for client in tuple(room.connections):
-                        try:
-                            await client.send_json(event)
-
-                        except (
-                            RuntimeError,
-                            OSError,
-                            WebSocketDisconnect,
-                        ):
-                            disconnected.append(client)
-
-                    for client in disconnected:
-                        room.connections.discard(client)
+                    await broadcast(
+                        room,
+                        {
+                            "type": "message_created",
+                            "message": dict(message),
+                        },
+                    )
 
                 print(
-                    f"[MESSAGE] room={room_id} "
+                    f"[CREATE] room={room_id} "
                     f"user={nickname} "
                     f"id={message['id']}"
                 )
+
+                continue
+
+            # ==================================
+            # EDYTOWANIE WIADOMOŚCI
+            # ==================================
+
+            if event_type == "edit_message":
+                message_id = payload.get("message_id")
+                new_text = payload.get("text")
+
+                if (
+                    not isinstance(message_id, str)
+                    or not isinstance(new_text, str)
+                ):
+                    continue
+
+                new_text = new_text.strip()
+
+                if not 1 <= len(new_text) <= 2000:
+                    async with room.lock:
+                        await send_error(
+                            websocket,
+                            "Nowa treść musi mieć od 1 "
+                            "do 2000 znaków.",
+                        )
+                    continue
+
+                async with room.lock:
+                    message = find_message(
+                        room,
+                        message_id,
+                    )
+
+                    if message is None:
+                        await send_error(
+                            websocket,
+                            "Nie znaleziono wiadomości.",
+                        )
+                        continue
+
+                    # Właściciel wiadomości
+                    if message["clientId"] != client_id:
+                        await send_error(
+                            websocket,
+                            "Możesz edytować tylko "
+                            "własne wiadomości.",
+                        )
+                        continue
+
+                    # Modyfikacja w sekcji krytycznej
+                    message["text"] = new_text
+                    message["editedAt"] = utc_now()
+
+                    latest = (
+                        dict(room.messages[-1])
+                        if room.messages else None
+                    )
+
+                    await broadcast(
+                        room,
+                        {
+                            "type": "message_updated",
+                            "message": dict(message),
+                            "lastMessage": latest,
+                        },
+                    )
+
+                print(
+                    f"[EDIT] room={room_id} "
+                    f"user={nickname} "
+                    f"id={message_id}"
+                )
+
+                continue
+
+            # ==================================
+            # USUWANIE WIADOMOŚCI
+            # ==================================
+
+            if event_type == "delete_message":
+                message_id = payload.get("message_id")
+
+                if not isinstance(message_id, str):
+                    continue
+
+                async with room.lock:
+                    message = find_message(
+                        room,
+                        message_id,
+                    )
+
+                    if message is None:
+                        await send_error(
+                            websocket,
+                            "Nie znaleziono wiadomości.",
+                        )
+                        continue
+
+                    if message["clientId"] != client_id:
+                        await send_error(
+                            websocket,
+                            "Możesz usunąć tylko "
+                            "własne wiadomości.",
+                        )
+                        continue
+
+                    # Usuwamy rekord z pamięci
+                    room.messages.remove(message)
+
+                    latest = (
+                        dict(room.messages[-1])
+                        if room.messages else None
+                    )
+
+                    await broadcast(
+                        room,
+                        {
+                            "type": "message_deleted",
+                            "messageId": message_id,
+                            "roomId": room_id,
+                            "lastMessage": latest,
+                        },
+                    )
+
+                print(
+                    f"[DELETE] room={room_id} "
+                    f"user={nickname} "
+                    f"id={message_id}"
+                )
+
+                continue
 
     except WebSocketDisconnect:
         pass
